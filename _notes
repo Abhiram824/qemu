@@ -1,0 +1,10 @@
+../configure --target-list=aarch64-linux-user
+
+
+# to compile
+aarch64-linux-gnu-gcc -o test_arm_normal -static -nostdlib test_arm.s
+
+# to assemble, add -S
+
+
+also see _working/build.sh

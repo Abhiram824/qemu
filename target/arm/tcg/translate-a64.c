@@ -10063,6 +10063,34 @@ static bool trans_FAIL(DisasContext *s, arg_OK *a)
     return true;
 }
 
+
+// ==============================================================
+// ===================== CUSTOM STUFF =========================
+// ==============================================================
+
+static bool trans_CSTM(DisasContext *ctx, arg_CSTM *a)
+{
+    // TCGv_i64 tcg_rn = rn_sp ? read_cpu_reg_sp(s, a->rn) : read_cpu_reg(s, a->rn);
+    // TCGv_i64 tcg_rd = rd_sp ? read_cpu_reg_sp(s, a->rd) : read_cpu_reg(s, a->rd);
+    // TCGArg res = tcgv_i64_arg(tcg_rn);
+    // res += (1 << 12) - 1;
+    // tcg_gen_mov_i64(tcg_rn, res);
+    
+    TCGv_i64 tcg_rn = cpu_reg_sp(ctx, a->rn);  // Read source
+    TCGv_i64 tcg_rd = cpu_reg(ctx, a->rd);     // Get destination
+    
+    tcg_gen_andi_i64(tcg_rd, tcg_rn, (1 << 12) - 1);  // Mask operation
+    
+
+    return true;
+
+}
+
+// ==============================================================
+// ==============================================================
+// ==============================================================
+
+
 /**
  * btype_destination_ok:
  * @insn: The instruction at the branch destination
