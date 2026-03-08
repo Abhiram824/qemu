@@ -319,6 +319,28 @@ typedef struct CPUArchState {
     uint64_t elr_el[4]; /* AArch64 exception link regs  */
     uint64_t sp_el[4]; /* AArch64 banked stack pointers */
 
+    // ===============================================================
+    // ===================== CUSTOM HFI ==============================
+    // ===============================================================
+    
+    struct {
+        struct {
+            uint64_t reg_base_ptr;
+            uint64_t reg_lsb_mask;
+        } implicit_regions[6];
+
+        uintptr_t exit_handler;
+
+        struct {
+            bool enabled; // whether HFI is on or off (to check bounds)
+            bool mode; // native vs hybrid
+        } config;
+    } hfi;
+    
+    // ===============================================================
+    // ===============================================================
+    // ===============================================================
+
     /* System control coprocessor (cp15) */
     struct {
         uint32_t c0_cpuid;
