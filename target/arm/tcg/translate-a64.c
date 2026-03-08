@@ -10064,118 +10064,6 @@ static bool trans_FAIL(DisasContext *s, arg_OK *a)
 }
 
 
-// ==============================================================
-// ===================== CUSTOM STUFF =========================
-// ==============================================================
-
-static bool trans_CSTM(DisasContext *ctx, arg_CSTM *a)
-{
-    // TCGv_i64 tcg_rn = rn_sp ? read_cpu_reg_sp(s, a->rn) : read_cpu_reg(s, a->rn);
-    // TCGv_i64 tcg_rd = rd_sp ? read_cpu_reg_sp(s, a->rd) : read_cpu_reg(s, a->rd);
-    // TCGArg res = tcgv_i64_arg(tcg_rn);
-    // res += (1 << 12) - 1;
-    // tcg_gen_mov_i64(tcg_rn, res);
-    
-    TCGv_i64 tcg_rn = cpu_reg_sp(ctx, a->rn);  // Read source
-    TCGv_i64 tcg_rd = cpu_reg(ctx, a->rd);     // Get destination
-    
-    tcg_gen_andi_i64(tcg_rd, tcg_rn, (1 << 12) - 1);  // Mask operation
-
-    return true;
-
-}
-
-static bool trans_HFI_SR(DisasContext *ctx, arg_HFI_SR *a)
-{
-    /* HFI_SR: Load two 64-bit HFI region descriptors from memory
-     * The address is in register rn
-     * Reads two 64-bit values at [rn] and [rn+8]
-     * Writes to the two HFI region registers
-     */
-    
-    TCGv_i64 region_ptr = cpu_reg_sp(ctx, a->region_ptr_gpr);
-    TCGv_i64 value1 = tcg_temp_new_i64();
-    TCGv_i64 value2 = tcg_temp_new_i64();
-    
-    /**
-     * get_mem_index - Retrieves the memory index for the current translation context
-     * @ctx: The ARM A64 translation context
-     * 
-     * Returns the memory access index, which is used to determine the appropriate
-     * memory access callbacks and privilege level (user vs. supervisor mode) for
-     * load/store operations. This is essential for proper MMU handling and access
-     * control during instruction translation.
-     * 
-     * MemOp flags:
-     * @MO_64: Specifies a 64-bit memory operation
-     * @MO_ALIGN: Requires the memory access to be naturally aligned
-     */
-    int memidx = get_mem_index(ctx);
-    MemOp memop = MO_64 | MO_ALIGN;
-    
-    // Read first 64-bit value from [region_ptr] (region_base_ptr)
-    tcg_gen_qemu_ld_i64(value1, region_ptr, memidx, memop);
-    
-    // Read second 64-bit value from [region_ptr+8]
-    TCGv_i64 addr2 = tcg_temp_new_i64();
-    tcg_gen_addi_i64(addr2, region_ptr, 8);
-    tcg_gen_qemu_ld_i64(value2, addr2, memidx, memop);
-    
-    // TCGv_i64 region_num = cpu_reg(ctx, a->region_number);
-    TCGv_i64 region_number = tcg_constant_i64(a->region_number);  // Get region number as constant
-
-
-    // Write to HFI region base registers in CPUARMState
-    // hfi.hfi_implicit_region_base[0] and hfi.hfi_implicit_region_base[1]
-    tcg_gen_st_i64(value1, tcg_env, 
-                   offsetof(CPUARMState, hfi.hfi_implicit_region_base[region_number]));
-    tcg_gen_st_i64(value2, tcg_env,
-                   offsetof(CPUARMState, hfi.hfi_implicit_region_base[region_number+1]));
-    
-    return true;
-}
-
-// static bool trans_HFI_SR(DisasContext *ctx, arg_HFI_SR *a);
-// {
-//     TCGv_i64 tcg_region_ptr_gpr = cpu_reg_sp(ctx, a->region_ptr_gpr);  // Read region pointer from GPR
-//     TCGv_i64 tcg_region_number = tcg_constant_i64(a->region_number);  // Get region number as constant
-    
-//     tcg_temp_new_i64()
-
-
-//     tcg_gen_andi_i64(tcg_rd, tcg_rn, (1 << 12) - 1);  // Mask operation
-
-//     return true;
-
-// }
-
-
-// static bool trans_LDR(DisasContext *s, arg_ldst *a)
-// {
-//     TCGv_i64 clean_addr, dirty_addr, tcg_rt;
-//     bool iss_sf = ldst_iss_sf(a->sz, a->sign, a->ext);
-//     MemOp memop;
-//     if (extract32(a->opt, 1, 1) == 0) {
-//         return false;
-//     }
-
-//         tcg_gen_qemu_ld_i64(dest, tcg_addr, memidx, memop);
-
-
-//     memop = finalize_memop(s, a->sz + a->sign * MO_SIGN);
-//     op_addr_ldst_pre(s, a, &clean_addr, &dirty_addr, false, memop);
-//     tcg_rt = cpu_reg(s, a->rt);
-//     do_gpr_ld(s, tcg_rt, clean_addr, memop,
-//               a->ext, true, a->rt, iss_sf, false);
-//     return true;
-// }
-
-
-// ==============================================================
-// ==============================================================
-// ==============================================================
-
-
 /**
  * btype_destination_ok:
  * @insn: The instruction at the branch destination
@@ -10431,7 +10319,8 @@ static void aarch64_tr_translate_insn(DisasContextBase *dcbase, CPUState *cpu)
 
     if (!disas_a64(s, insn) &&
         !disas_sme(s, insn) &&
-        !disas_sve(s, insn)) {
+        !disas_sve(s, insn) &&
+        !disas_hfi(s, insn)) {
         unallocated_encoding(s);
     }
 
