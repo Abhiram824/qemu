@@ -70,10 +70,16 @@ $(OUT_DIR):
 	@mkdir -p $(OUT_DIR)
 
 # ============================================================================
+# Header File Dependencies
+# ============================================================================
+
+HEADERS = $(wildcard *.h) $(wildcard $(TEST_DIR)/*.h)
+
+# ============================================================================
 # Assembly Generation (C -> .s)
 # ============================================================================
 
-$(OUT_DIR)/%.s: $(TEST_DIR)/%.c | $(OUT_DIR)
+$(OUT_DIR)/%.s: $(TEST_DIR)/%.c $(HEADERS) | $(OUT_DIR)
 	@echo "[ASM] Compiling: $< -> $@"
 	@$(CC) $(CFLAGS) -S $< -o $@
 
@@ -81,7 +87,7 @@ $(OUT_DIR)/%.s: $(TEST_DIR)/%.c | $(OUT_DIR)
 # Binary Compilation (C -> binary)
 # ============================================================================
 
-$(OUT_DIR)/%: $(TEST_DIR)/%.c | $(OUT_DIR)
+$(OUT_DIR)/%: $(TEST_DIR)/%.c $(HEADERS) | $(OUT_DIR)
 	@echo "[BIN] Compiling: $< -> $@"
 	@$(CC) $(CFLAGS) $(LDFLAGS) $< -o $@
 

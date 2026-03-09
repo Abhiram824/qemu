@@ -25,6 +25,7 @@
 #include "arm_ldst.h"
 #include "semihosting/semihost.h"
 #include "cpregs.h"
+#include "translate-hfi.h"
 
 static TCGv_i64 cpu_X[32];
 static TCGv_i64 cpu_pc;
@@ -91,6 +92,16 @@ void a64_translate_init(void)
 
     cpu_exclusive_high = tcg_global_mem_new_i64(tcg_env,
         offsetof(CPUARMState, exclusive_high), "exclusive_high");
+
+    // ======================================
+    // =============== HFI ==================
+    // ======================================
+
+    hfi_translate_init();
+    
+    // ======================================
+    // ======================================
+    // ======================================
 }
 
 /*
