@@ -31,15 +31,15 @@
 // clang-format on
 
 static struct {
-    TCGv_i64 reg_base_ptr;
+    TCGv_i64 reg_base_addr;
     TCGv_i64 reg_lsb_mask;
 } tcg_implicit_region_regs[6];
 
 void hfi_translate_init(void) {
     // cpu_pc = tcg_global_mem_new_i64(tcg_env, offsetof(CPUARMState, pc), "pc");
     for (int i = 0; i < 6; i++) {
-        tcg_implicit_region_regs[i].reg_base_ptr = tcg_global_mem_new_i64(
-            tcg_env, offsetof(CPUARMState, hfi.implicit_regions[i].reg_base_ptr),
+        tcg_implicit_region_regs[i].reg_base_addr = tcg_global_mem_new_i64(
+            tcg_env, offsetof(CPUARMState, hfi.implicit_regions[i].reg_base_addr),
             "hfi_implicit_region_base");
         tcg_implicit_region_regs[i].reg_lsb_mask = tcg_global_mem_new_i64(
             tcg_env, offsetof(CPUARMState, hfi.implicit_regions[i].reg_lsb_mask),
@@ -107,7 +107,7 @@ static bool trans_HFI_SR(DisasContext* ctx, arg_HFI_SR* a) {
     /*
      * Write to HFI region base registers in CPUARMState
      */
-    tcg_gen_mov_i64(tcg_implicit_region_regs[region_number].reg_base_ptr, value1);
+    tcg_gen_mov_i64(tcg_implicit_region_regs[region_number].reg_base_addr, value1);
     tcg_gen_mov_i64(tcg_implicit_region_regs[region_number].reg_lsb_mask, value2);
 
     return true;

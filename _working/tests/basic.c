@@ -23,10 +23,10 @@ int test_cstm() {
 int test_hfi_sr() {
     // placeholder
     struct {
-        uint64_t reg_base_ptr;
+        uint64_t reg_base_addr;
         uint64_t reg_lsb_mask;
     } region_desc;
-    region_desc.reg_base_ptr = 0x123456789ABC0000;
+    region_desc.reg_base_addr = 0x123456789ABC0000;
     region_desc.reg_lsb_mask = 0xFFFF;
     void* region_desc_ptr = &region_desc;
 

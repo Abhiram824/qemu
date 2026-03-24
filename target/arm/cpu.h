@@ -30,6 +30,7 @@
 #include "qapi/qapi-types-common.h"
 #include "target/arm/multiprocessing.h"
 #include "target/arm/gtimer.h"
+#include "hfi.h"
 
 #ifdef TARGET_AARCH64
 #define KVM_HAVE_MCE_INJECTION 1
@@ -322,20 +323,8 @@ typedef struct CPUArchState {
     // ===============================================================
     // ===================== CUSTOM HFI ==============================
     // ===============================================================
-    
-    struct {
-        struct {
-            uint64_t reg_base_ptr;
-            uint64_t reg_lsb_mask;
-        } implicit_regions[6];
 
-        uintptr_t exit_handler;
-
-        struct {
-            bool enabled; // whether HFI is on or off (to check bounds)
-            bool mode; // native vs hybrid
-        } config;
-    } hfi;
+    CPUArchState_HFI hfi;
     
     // ===============================================================
     // ===============================================================
