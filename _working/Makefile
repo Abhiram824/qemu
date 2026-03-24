@@ -28,11 +28,22 @@ TEST_ASM = $(addprefix $(OUT_DIR)/,$(addsuffix .s,$(TEST_NAMES)))
 TEST_BIN = $(addprefix $(OUT_DIR)/,$(TEST_NAMES))
 
 # Declare all targets as phony
-.PHONY: all configure qemu qemu-rebuild asm bin build run run-% clean help status
+.PHONY: all configure qemu qemu-rebuild asm bin build run run-% clean help status git-push
 
 # Default target
 all: qemu asm bin
 	@echo "[BUILD] All tests compiled successfully"
+
+# ============================================================================
+# GIT
+# ============================================================================
+
+git-push:
+	@git add ..
+	@git status
+	@read -p "Enter commit message: " FILENAME; \
+	git commit -m "$$FILENAME"
+	git push
 
 # ============================================================================
 # QEMU Build

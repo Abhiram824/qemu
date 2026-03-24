@@ -71,8 +71,11 @@ typedef struct {
 
     struct {
         bool reg_enabled;       // whether HFI is on or off (to check bounds)
-        bool reg_is_hybrid;     // native vs hybrid
-        bool reg_lock_regions;  // whether regions are locked (i.e., cannot be modified until next reset)
+        
+        /**
+         * bit 0 - whether regions are locked or not
+         */
+        uint8_t reg_config_opts;
 
         /**
          * The register storing the exit handler address for traps
