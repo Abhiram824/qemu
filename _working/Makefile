@@ -28,7 +28,7 @@ TEST_ASM = $(addprefix $(OUT_DIR)/,$(addsuffix .s,$(TEST_NAMES)))
 TEST_BIN = $(addprefix $(OUT_DIR)/,$(TEST_NAMES))
 
 # Declare all targets as phony
-.PHONY: all qemu qemu-rebuild asm bin build run run-% clean help status
+.PHONY: all configure qemu qemu-rebuild asm bin build run run-% clean help status
 
 # Default target
 all: qemu asm bin
@@ -38,7 +38,20 @@ all: qemu asm bin
 # QEMU Build
 # ============================================================================
 
-qemu:
+configure:
+	@if [ -d "../build" ]; then \
+		echo "[CONFIGURE] Found Build Configuration"; \
+	else \
+		echo "[CONFIGURE] Building Configuration for aarch64"; \
+		sudo apt update; \
+		sudo apt install ninja-build; \
+		sudo apt install libglib2.0-dev; \
+		mkdir -p ../build; \
+		cd ../build && ../configure --target-list="aarch64-linux-user"; \
+		echo "[CONFIGURE] Building Complete for aarch64"; \
+	fi
+
+qemu: configure
 	@echo "[QEMU] Building QEMU with make -j$$(nproc) -C $(QEMU_BUILD)..."
 	@make -j$$(nproc) -C $(QEMU_BUILD)
 	@if [ -f "$(QEMU_BIN)" ]; then \
