@@ -4,6 +4,17 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+typedef enum {
+    HFI_FAULT_OUT_OF_BOUNDS = 1,
+    HFI_FAULT_PERMISSION = 2,
+} HFI_FaultReason;
+
+typedef enum {
+    HFI_FAULT_OPERATION_LOAD = 1,
+    HFI_FAULT_OPERATION_STORE = 2,
+    HFI_FAULT_OPERATION_FETCH = 3,
+} HFI_FaultOperation;
+
 typedef struct {
     /**
      * Implicit regions are split into code and data regions
@@ -37,20 +48,36 @@ typedef struct {
 
     struct {
         /**
-         * The register storing the exit handler address for traps
+         * The register storing the ID of the region that caused the fault
+         * If the access was OOB and not related to any region, this is set to 255
          */
-        uintptr_t reg_exit_handler_addr;
+        uint8_t reg_fault_region_id;  // the region ID that caused the fault (0-5 for implicit regions, 6-9 for explicit regions)
 
         /**
-         *  The register storing the fault reason for traps
+         * The registers storing the fault information for the traps
          */
-        uint8_t reg_fault_reason;
+        HFI_FaultReason reg_fault_reason;
+
+        /**
+         * The register storing the fault operation for traps
+         */
+        HFI_FaultOperation reg_fault_operation;
+
+        /**
+         * Whether a fault has occurred and the exit handler should be called. This is set by instrumentation in the translated code when a fault condition is met, and checked by the main loop to determine whether to call the exit handler.
+         */
+        bool reg_fault_occurred;  // whether a fault has occurred and the exit handler should be called
     } fault_config;
 
     struct {
-        bool reg_enabled;    // whether HFI is on or off (to check bounds)
-        bool reg_is_hybrid;  // native vs hybrid
-        bool reg_lock_regions; // whether regions are locked (i.e., cannot be modified until next reset)
+        bool reg_enabled;       // whether HFI is on or off (to check bounds)
+        bool reg_is_hybrid;     // native vs hybrid
+        bool reg_lock_regions;  // whether regions are locked (i.e., cannot be modified until next reset)
+
+        /**
+         * The register storing the exit handler address for traps
+         */
+        uintptr_t reg_exit_handler_addr;
     } control_config;
 } CPUArchState_HFI;
 
