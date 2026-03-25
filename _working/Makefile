@@ -65,7 +65,8 @@ configure:
 		echo "[CONFIGURE] Building Complete for aarch64"; \
 	fi
 
-	@if ! command -v aarch64-linux-gnu-gcc &> /dev/null; then \
+	@if ! command -v aarch64-linux-gnu-gcc; then \
+		echo "[CONFIGURE] Installing aarch64-linux-gnu-gcc"; \
 		sudo apt update; \
 		sudo apt install gcc-aarch64-linux-gnu; \
 	fi
