@@ -45,6 +45,9 @@ git-push:
 	git commit -m "$$FILENAME"
 	git push
 
+git-pull:
+	@git pull
+
 # ============================================================================
 # QEMU Build
 # ============================================================================
@@ -60,6 +63,11 @@ configure:
 		mkdir -p ../build; \
 		cd ../build && ../configure --target-list="aarch64-linux-user"; \
 		echo "[CONFIGURE] Building Complete for aarch64"; \
+	fi
+
+	@if ! command -v aarch64-linux-gnu-gcc &> /dev/null; then \
+		sudo apt update; \
+		sudo apt install gcc-aarch64-linux-gnu; \
 	fi
 
 qemu: configure

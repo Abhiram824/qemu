@@ -37,14 +37,14 @@ static struct {
 
 void hfi_translate_init(void) {
     // cpu_pc = tcg_global_mem_new_i64(tcg_env, offsetof(CPUARMState, pc), "pc");
-    for (int i = 0; i < 6; i++) {
-        tcg_implicit_region_regs[i].reg_base_addr = tcg_global_mem_new_i64(
-            tcg_env, offsetof(CPUARMState, hfi.implicit_regions[i].reg_base_addr),
-            "hfi_implicit_region_base");
-        tcg_implicit_region_regs[i].reg_lsb_mask = tcg_global_mem_new_i64(
-            tcg_env, offsetof(CPUARMState, hfi.implicit_regions[i].reg_lsb_mask),
-            "hfi_implicit_region_lsb_mask");
-    }
+    // for (int i = 0; i < 6; i++) {
+    //     tcg_implicit_region_regs[i].reg_base_addr = tcg_global_mem_new_i64(
+    //         tcg_env, offsetof(CPUARMState, hfi.implicit_regions[i].reg_base_addr),
+    //         "hfi_implicit_region_base");
+    //     tcg_implicit_region_regs[i].reg_lsb_mask = tcg_global_mem_new_i64(
+    //         tcg_env, offsetof(CPUARMState, hfi.implicit_regions[i].reg_lsb_mask),
+    //         "hfi_implicit_region_lsb_mask");
+    // }
 }
 
 /*
