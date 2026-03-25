@@ -26,9 +26,10 @@ TEST_NAMES = $(basename $(notdir $(TEST_SOURCES)))
 # Generated files
 TEST_ASM = $(addprefix $(OUT_DIR)/,$(addsuffix .s,$(TEST_NAMES)))
 TEST_BIN = $(addprefix $(OUT_DIR)/,$(TEST_NAMES))
+TEST_DUMPS = $(addprefix $(OUT_DIR)/,$(addsuffix .dump,$(TEST_NAMES)))
 
 # Declare all targets as phony
-.PHONY: all configure qemu qemu-rebuild asm bin build run run-% clean help status git-push
+.PHONY: all configure qemu qemu-rebuild asm bin build run run-% clean help status git-push debug-% objdump
 
 # Default target
 all: qemu asm bin
@@ -125,6 +126,14 @@ $(OUT_DIR)/%: $(TEST_DIR)/%.c $(HEADERS) | $(OUT_DIR)
 	@$(CC) $(CFLAGS) $(LDFLAGS) $< -o $@
 
 # ============================================================================
+# Disassembly Generation (binary -> .dump)
+# ============================================================================
+
+$(OUT_DIR)/%.dump: $(OUT_DIR)/%
+	@echo "[DUMP] Disassembling: $< -> $@"
+	@$(OBJDUMP) -d $< > $@
+
+# ============================================================================
 # Build Targets
 # ============================================================================
 
@@ -141,6 +150,10 @@ bin: qemu $(TEST_BIN)
 build: asm bin
 	@echo "[BUILD] ✓ All targets built"
 
+# Generate disassembly dumps
+objdump: bin $(TEST_DUMPS)
+	@echo "[DUMP] ✓ All disassembly files generated"
+
 # ============================================================================
 # Run Targets
 # ============================================================================
@@ -150,6 +163,11 @@ run-%: qemu $(OUT_DIR)/%
 	@echo "[RUN] Executing: $*"
 	@$(QEMU_BIN) $(OUT_DIR)/$*
 	@echo "[DONE] Test completed with exit code: $$?"
+
+# Debug a specific test: make debug-testname
+debug-%: qemu $(OUT_DIR)/%
+	@echo "[DEBUG] Running: $* with gdb"
+	@gdb --args $(QEMU_BIN) $(OUT_DIR)/$*
 
 # Run all tests
 run: qemu $(TEST_BIN)
@@ -184,6 +202,12 @@ clean:
 	@rm -rf $(OUT_DIR)
 	@echo "[CLEAN] ✓ Done"
 
+# Clean disassembly dumps only
+clean-dumps:
+	@echo "[CLEAN] Removing disassembly files..."
+	@rm -f $(TEST_DUMPS)
+	@echo "[CLEAN] ✓ Done"
+
 # Show help
 help:
 	@echo "╔════════════════════════════════════════════════════════════════╗"
@@ -206,6 +230,11 @@ help:
 	@echo ""
 	@echo "UTILITY TARGETS:"
 	@echo "  make status      - Show build system configuration"
+	@echo "  make objdump     - Generate disassembly dumps for all binaries"
+	@echo ""
+	@echo "CLEANUP:"
+	@echo "  make clean       - Remove all build artifacts"
+	@echo "  make clean-dumps - Remove only disassembly dump files"
 	@echo ""
 	@echo "AVAILABLE TESTS:"
 	@if [ -n "$(TEST_SOURCES)" ]; then \
@@ -216,6 +245,7 @@ help:
 	@echo ""
 	@echo "EXAMPLE USAGE:"
 	@echo "  make              # Build QEMU and all tests"
+	@echo "  make objdump      # Generate disassembly dumps for all tests"
 	@echo "  make run-basic    # Run the 'basic' test"
 	@echo "  make run          # Run all tests"
 	@echo "  make clean        # Clean build artifacts"

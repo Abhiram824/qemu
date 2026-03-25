@@ -1,7 +1,6 @@
 #ifndef ARM_HFI_H
 #define ARM_HFI_H
 
-#include <stdbool.h>
 #include <stdint.h>
 
 /* HFI_FaultReason */
@@ -19,7 +18,6 @@
 
 typedef struct
 {
-
     struct
     {
         /**
@@ -32,15 +30,15 @@ typedef struct
         {
             uint64_t reg_base_addr;
             uint64_t reg_lsb_mask;
-            bool reg_perm_exec;
+            uint32_t reg_perm_exec;
         } implicit_code[2];
 
         struct
         {
             uint64_t reg_base_addr;
             uint64_t reg_lsb_mask;
-            bool reg_perm_read;
-            bool reg_perm_write;
+            uint32_t reg_perm_read;
+            uint32_t reg_perm_write;
         } implicit_data[4];
 
         /**
@@ -50,9 +48,9 @@ typedef struct
         {
             uint64_t reg_base_addr;
             uint64_t reg_bound_addr;
-            bool reg_perm_read;
-            bool reg_perm_write;
-            bool reg_is_large; // whether the region is large (i.e., 2^48 or larger)
+            uint32_t reg_perm_read;
+            uint32_t reg_perm_write;
+            uint32_t reg_is_large;  // whether the region is large (i.e., 2^48 or larger)
         } explicit_data[4];
     } regions;
 
@@ -62,24 +60,24 @@ typedef struct
          * The register storing the ID of the region that caused the fault
          * If the access was OOB and not related to any region, this is set to 255
          */
-        uint8_t reg_fault_region_id; // the region ID that caused the fault (0-5 for implicit regions, 6-9 for explicit regions)
+        uint32_t reg_fault_region_id;  // the region ID that caused the fault (0-5 for implicit regions, 6-9 for explicit regions)
 
         /**
          * The registers storing the fault information for the traps
          * fmt: HFI_FaultReason
          */
-        uint8_t reg_fault_reason;
+        uint32_t reg_fault_reason;
 
         /**
          * The register storing the fault operation for traps
          * fmt: HFI_FaultOperation
          */
-        uint8_t reg_fault_operation;
+        uint32_t reg_fault_operation;
 
         /**
          * Whether a fault has occurred and the exit handler should be called. This is set by instrumentation in the translated code when a fault condition is met, and checked by the main loop to determine whether to call the exit handler.
          */
-        bool reg_fault_occurred; // whether a fault has occurred and the exit handler should be called
+        uint32_t reg_fault_occurred;  // whether a fault has occurred and the exit handler should be called
     } fault_config;
 
     struct
@@ -88,22 +86,22 @@ typedef struct
          * The register storing the exit handler address for traps
          */
         uintptr_t reg_exit_handler_addr;
-        
+
         /**
          * The reason for leaving hfi
          * fmt: HFI_ExitReason
          */
-        uint8_t exit_reason;
+        uint32_t exit_reason;
     } exit_state;
 
     struct
     {
-        bool reg_enabled; // whether HFI is on or off (to check bounds)
+        uint32_t reg_enabled;  // whether HFI is on or off (to check bounds)
 
         /**
          * bit 0 - whether regions are locked or not
          */
-        uint8_t reg_config_opts;
+        uint32_t reg_config_opts;
     } control_config;
 } CPUArchState_HFI;
 
