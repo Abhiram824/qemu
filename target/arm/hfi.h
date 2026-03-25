@@ -1,6 +1,7 @@
 #ifndef ARM_HFI_H
 #define ARM_HFI_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 /* HFI_FaultReason */
@@ -16,6 +17,25 @@
 #define HFI_EXIT_CALLED 1
 #define HFI_SYSCALL_REQUESTED 2
 
+/* HFI_Permissions */
+#define HFI_PERM_READ 0x1
+#define HFI_PERM_WRITE 0x2
+#define HFI_PERM_EXEC 0x4
+#define HFI_PERM_ALL_MASK (HFI_PERM_READ | HFI_PERM_WRITE | HFI_PERM_EXEC)
+
+/* HFI_Flags */
+#define HFI_REGION_IS_LARGE 0x8
+
+/* REGION ENUMERATIONS */
+#define HFI_REGION_IMPLICIT_CODE_COUNT 2
+#define HFI_REGION_IMPLICIT_DATA_COUNT 4
+#define HFI_REGION_EXPLICIT_DATA_COUNT 4
+
+#define HFI_REGION_IMPLICIT_CODE_I 0
+#define HFI_REGION_IMPLICIT_DATA_I (HFI_REGION_IMPLICIT_CODE_I + HFI_REGION_IMPLICIT_CODE_COUNT)
+#define HFI_REGION_EXPLICIT_DATA_I (HFI_REGION_IMPLICIT_DATA_I + HFI_REGION_IMPLICIT_DATA_COUNT)
+#define HFI_TOTAL_REGIONS (HFI_REGION_EXPLICIT_DATA_I + HFI_REGION_EXPLICIT_DATA_COUNT)
+
 typedef struct
 {
     struct
@@ -25,34 +45,16 @@ typedef struct
          * - data regions are used for data accesses (loads and stores)
          * - code regions are used for instruction fetches
          * Implicit regions checks are not applied on explicit regions
-         */
-        struct
-        {
-            uint64_t reg_base_addr;
-            uint64_t reg_lsb_mask;
-            uint32_t reg_perm_exec;
-        } implicit_code[2];
-
-        struct
-        {
-            uint64_t reg_base_addr;
-            uint64_t reg_lsb_mask;
-            uint32_t reg_perm_read;
-            uint32_t reg_perm_write;
-        } implicit_data[4];
-
-        /**
          * Explicit regions are a handle to a memory range with normal base, bound
+         * Permission and flags are in a bit vector.
+         * Regions 0-1: implicit code
+         * Regions 2-5: implicit data
+         * Regions 6-9: explicit data
          */
-        struct
-        {
-            uint64_t reg_base_addr;
-            uint64_t reg_bound_addr;
-            uint32_t reg_perm_read;
-            uint32_t reg_perm_write;
-            uint32_t reg_is_large;  // whether the region is large (i.e., 2^48 or larger)
-        } explicit_data[4];
-    } regions;
+        uint64_t reg_base;
+        uint64_t reg_mask_or_bound;  // mask for implicit regions, bound for explicit regions
+        uint32_t reg_perms_flags;
+    } regions[HFI_TOTAL_REGIONS];
 
     struct
     {
@@ -104,5 +106,65 @@ typedef struct
         uint32_t reg_config_opts;
     } control_config;
 } CPUArchState_HFI;
+
+inline bool hfi_get_perm_read(uint32_t perms_flags) {
+    return (perms_flags & HFI_PERM_READ) != 0;
+}
+
+inline void hfi_set_perm_read(uint32_t* perms_flags, bool can_read) {
+    if (can_read) {
+        *perms_flags |= HFI_PERM_READ;
+    } else {
+        *perms_flags &= ~HFI_PERM_READ;
+    }
+}
+
+inline void hfi_set_perm_write(uint32_t* perms_flags, bool can_write) {
+    if (can_write) {
+        *perms_flags |= HFI_PERM_WRITE;
+    } else {
+        *perms_flags &= ~HFI_PERM_WRITE;
+    }
+}
+
+inline bool hfi_get_perm_exec(uint32_t perms_flags) {
+    return (perms_flags & HFI_PERM_EXEC) != 0;
+}
+
+inline void hfi_set_perm_exec(uint32_t* perms_flags, bool can_exec) {
+    if (can_exec) {
+        *perms_flags |= HFI_PERM_EXEC;
+    } else {
+        *perms_flags &= ~HFI_PERM_EXEC;
+    }
+}
+
+inline bool hfi_get_flag_is_large(uint32_t perms_flags) {
+    return (perms_flags & HFI_REGION_IS_LARGE) != 0;
+}
+
+inline void hfi_set_flag_is_large(uint32_t* perms_flags, bool is_large) {
+    if (is_large) {
+        *perms_flags |= HFI_REGION_IS_LARGE;
+    } else {
+        *perms_flags &= ~HFI_REGION_IS_LARGE;
+    }
+}
+
+inline bool hfi_is_region_locked(uint32_t config_opts) {
+    return (config_opts & 0x1) != 0;
+}
+
+inline bool hfi_set_region_locked(uint32_t* config_opts, bool locked) {
+    if (locked) {
+        *config_opts |= 0x1;
+    } else {
+        *config_opts &= ~0x1;
+    }
+}
+
+inline bool hfi_is_hfi_enabled(uint32_t enabled) {
+    return enabled != 0;
+}
 
 #endif /* ARM_HFI_H */

@@ -1154,6 +1154,7 @@ DEF_HELPER_FLAGS_3(gvec_ursqrte_s, TCG_CALL_NO_RWG, void, ptr, ptr, i32)
 #include "tcg/helper-a64.h"
 #include "tcg/helper-sve.h"
 #include "tcg/helper-sme.h"
+#include "tcg/helper-hfi.h"
 #endif
 
 #include "tcg/helper-mve.h"

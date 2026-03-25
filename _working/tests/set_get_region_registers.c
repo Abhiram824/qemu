@@ -25,8 +25,7 @@ int test_region_base_implicit_code() {
         "mov %[result], x2\n"
         : [result] "=r"(result)
         : [base_value] "r"(base_value)
-        : "x1", "x2"
-    );
+        : "x1", "x2");
 
     return result == base_value;
 }
@@ -42,8 +41,7 @@ int test_region_base_implicit_data() {
         "mov %[result], x2\n"
         : [result] "=r"(result)
         : [base_value] "r"(base_value)
-        : "x1", "x2"
-    );
+        : "x1", "x2");
 
     return result == base_value;
 }
@@ -59,8 +57,7 @@ int test_region_base_explicit_data() {
         "mov %[result], x2\n"
         : [result] "=r"(result)
         : [base_value] "r"(base_value)
-        : "x1", "x2"
-    );
+        : "x1", "x2");
 
     return result == base_value;
 }
@@ -77,8 +74,7 @@ int test_region_mask_implicit_code() {
         "mov %[result], x2\n"
         : [result] "=r"(result)
         : [mask_value] "r"(mask_value)
-        : "x1", "x2"
-    );
+        : "x1", "x2");
 
     return result == mask_value;
 }
@@ -94,8 +90,7 @@ int test_region_mask_implicit_data() {
         "mov %[result], x2\n"
         : [result] "=r"(result)
         : [mask_value] "r"(mask_value)
-        : "x1", "x2"
-    );
+        : "x1", "x2");
 
     return result == mask_value;
 }
@@ -111,8 +106,7 @@ int test_region_mask_explicit_data() {
         "mov %[result], x2\n"
         : [result] "=r"(result)
         : [bound_value] "r"(bound_value)
-        : "x1", "x2"
-    );
+        : "x1", "x2");
 
     return result == bound_value;
 }
@@ -130,8 +124,7 @@ int test_region_permissions_implicit_code() {
         "mov %w[result], w2\n"
         : [result] "=r"(result)
         : [perm_value] "r"(perm_value)
-        : "w1", "w2"
-    );
+        : "w1", "w2");
 
     return result == perm_value;
 }
@@ -148,8 +141,7 @@ int test_region_permissions_implicit_data() {
         "mov %w[result], w2\n"
         : [result] "=r"(result)
         : [perm_value] "r"(perm_value)
-        : "w1", "w2"
-    );
+        : "w1", "w2");
 
     return result == perm_value;
 }
@@ -166,8 +158,7 @@ int test_region_permissions_explicit_data() {
         "mov %w[result], w2\n"
         : [result] "=r"(result)
         : [perm_value] "r"(perm_value)
-        : "w1", "w2"
-    );
+        : "w1", "w2");
 
     return result == perm_value;
 }
@@ -190,8 +181,7 @@ int test_multiple_regions_isolation() {
         "mov %[result_1], x3\n"
         : [result_0] "=r"(result_0), [result_1] "=r"(result_1)
         : [base_region_0] "r"(base_region_0), [base_region_1] "r"(base_region_1)
-        : "x1", "x2", "x3"
-    );
+        : "x1", "x2", "x3");
 
     return (result_0 == base_region_0) && (result_1 == base_region_1);
 }
@@ -203,14 +193,13 @@ int test_all_region_types() {
     memset(bases, 0, sizeof(bases));
 
     for (int i = 0; i < 10; i++) {
-        uint64_t test_base = 0x1000000000000000ULL + (i << 32);
+        uint64_t test_base = 0x1000000000000000ULL + ((uint64_t)i << 32);
         bases[i] = test_base;
 
         asm volatile(
             "mov x1, %[test_base]\n"
             "" HFI_SRB(0, 1)  // This should be: HFI_SRB(region_i, 1) but can't do in loop
-            : : [test_base] "r"(test_base) : "x1"
-        );
+            : : [test_base] "r"(test_base) : "x1");
     }
 
     return 1;  // Simplified for loop constraint

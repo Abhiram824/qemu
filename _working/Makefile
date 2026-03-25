@@ -28,6 +28,9 @@ TEST_ASM = $(addprefix $(OUT_DIR)/,$(addsuffix .s,$(TEST_NAMES)))
 TEST_BIN = $(addprefix $(OUT_DIR)/,$(TEST_NAMES))
 TEST_DUMPS = $(addprefix $(OUT_DIR)/,$(addsuffix .dump,$(TEST_NAMES)))
 
+# Find all HFI-related files in the parent directory, excluding build and hidden directories
+HFI_FILES = $(shell find .. -type f -name "*hfi*" | grep -vE "(/build/|/\.[^/]+/|/_)")
+
 # Declare all targets as phony
 .PHONY: all configure qemu qemu-rebuild asm bin build run run-% clean help status git-push debug-% objdump
 
@@ -36,7 +39,7 @@ all: qemu asm bin
 	@echo "[BUILD] All tests compiled successfully"
 
 # ============================================================================
-# GIT
+# GIT AND WORKSPACE MANAGEMENT
 # ============================================================================
 
 git-push:
@@ -48,6 +51,22 @@ git-push:
 
 git-pull:
 	@git pull
+
+workspace:
+	@echo "Finding HFI files with grep, excluding build directory and directories starting with . or _ ..."
+	@echo "Found HFI files:"
+	@for file in $(HFI_FILES); do \
+		echo "  $$file"; \
+	done
+	@echo ""
+	@printf "Do you want to open these files in VS Code? [y/N]: "; \
+	read ans; \
+	if [ "$$ans" = "y" ] || [ "$$ans" = "Y" ]; then \
+		code -r $(HFI_FILES); \
+	else \
+		echo "Opening cancelled."; \
+	fi
+
 
 # ============================================================================
 # QEMU Build

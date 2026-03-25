@@ -20,8 +20,10 @@
 // clang-format off
 #include "translate-hfi.h"
 #include "qemu/osdep.h"
+#include "../hfi.h"
 
 #include "exec/exec-all.h"
+#include "exec/helper-proto.h"
 #include "translate.h"
 #include "translate-a64.h"
 #include "qemu/log.h"
@@ -59,25 +61,10 @@
 
 static struct {
     struct {
-        struct {
-            TCGv_i64 reg_base_addr;
-            TCGv_i64 reg_lsb_mask;
-            TCGv_i32 reg_perm_exec;
-        } implicit_code[2];
-        struct {
-            TCGv_i64 reg_base_addr;
-            TCGv_i64 reg_lsb_mask;
-            TCGv_i32 reg_perm_read;
-            TCGv_i32 reg_perm_write;
-        } implicit_data[4];
-        struct {
-            TCGv_i64 reg_base_addr;
-            TCGv_i64 reg_bound_addr;
-            TCGv_i32 reg_perm_read;
-            TCGv_i32 reg_perm_write;
-            TCGv_i32 reg_is_large;
-        } explicit_data[4];
-    } regions;
+        TCGv_i64 reg_base;
+        TCGv_i64 reg_mask_or_bound;
+        TCGv_i32 reg_perms_flags;
+    } regions[HFI_TOTAL_REGIONS];
     struct {
         TCGv_i32 reg_fault_region_id;
         TCGv_i32 reg_fault_reason;
@@ -99,28 +86,11 @@ HFI_GLOBAL_TEMP_INIT;
 void hfi_translate_init(void) {
     int i;
 
-    /* Initialize implicit code regions */
-    for (i = 0; i < 2; i++) {
-        HFI_INIT_FIELD(regions.implicit_code[i].reg_base_addr);
-        HFI_INIT_FIELD(regions.implicit_code[i].reg_lsb_mask);
-        HFI_INIT_FIELD(regions.implicit_code[i].reg_perm_exec);
-    }
-
-    /* Initialize implicit data regions */
-    for (i = 0; i < 4; i++) {
-        HFI_INIT_FIELD(regions.implicit_data[i].reg_base_addr);
-        HFI_INIT_FIELD(regions.implicit_data[i].reg_lsb_mask);
-        HFI_INIT_FIELD(regions.implicit_data[i].reg_perm_read);
-        HFI_INIT_FIELD(regions.implicit_data[i].reg_perm_write);
-    }
-
-    /* Initialize explicit data regions */
-    for (i = 0; i < 4; i++) {
-        HFI_INIT_FIELD(regions.explicit_data[i].reg_base_addr);
-        HFI_INIT_FIELD(regions.explicit_data[i].reg_bound_addr);
-        HFI_INIT_FIELD(regions.explicit_data[i].reg_perm_read);
-        HFI_INIT_FIELD(regions.explicit_data[i].reg_perm_write);
-        HFI_INIT_FIELD(regions.explicit_data[i].reg_is_large);
+    /* Initialize all regions */
+    for (i = 0; i < HFI_TOTAL_REGIONS; i++) {
+        HFI_INIT_FIELD(regions[i].reg_base);
+        HFI_INIT_FIELD(regions[i].reg_mask_or_bound);
+        HFI_INIT_FIELD(regions[i].reg_perms_flags);
     }
 
     /* Initialize fault configuration */
@@ -139,6 +109,49 @@ void hfi_translate_init(void) {
 }
 
 // =============================================================================
+// =============================== HELPERS =====================================
+// =============================================================================
+
+// /**
+//  * Abstracted check patterns at the translation IR level
+//  * See helper-hfi.c for gen level helpers
+//  * Usage pattern:
+//  *   TCGLabel* skip_label;
+//  *   hfi_begin_region_locked(&skip_label);
+//  *   ... code that should only execute if HFI is enabled and region-locked ...
+//  *   hfi_end_section(skip_label);
+//  */
+
+// /* Begin a region-locked section (checks enabled AND locked) */
+// static void hfi_begin_region_locked(TCGLabel** skip_label) {
+//     TCGv_i32 enabled = tcg_temp_new_i32();
+//     TCGv_i32 locked = tcg_temp_new_i32();
+//     *skip_label = gen_new_label();
+
+//     tcg_gen_mov_i32(enabled, tcg_hfi.control_config.reg_enabled);
+//     tcg_gen_mov_i32(locked, tcg_hfi.control_config.reg_config_opts);
+//     tcg_gen_andi_i32(locked, locked, 0x1); /* Extract bit 0 for lock state */
+
+//     TCGv_i32 cond = tcg_temp_new_i32();
+//     tcg_gen_and_i32(cond, enabled, locked);
+//     tcg_gen_brcondi_i32(TCG_COND_EQ, cond, 0, *skip_label);
+// }
+
+// /* Begin an enabled section (checks enabled only) */
+// static void hfi_begin_enabled(TCGLabel** skip_label) {
+//     TCGv_i32 enabled = tcg_temp_new_i32();
+//     *skip_label = gen_new_label();
+
+//     tcg_gen_mov_i32(enabled, tcg_hfi.control_config.reg_enabled);
+//     tcg_gen_brcondi_i32(TCG_COND_EQ, enabled, 0, *skip_label);
+// }
+
+// /* End a conditional section */
+// static void hfi_end_section(TCGLabel* skip_label) {
+//     gen_set_label(skip_label);
+// }
+
+// =============================================================================
 // =============================== TRANSLATION =================================
 // =============================================================================
 
@@ -148,193 +161,53 @@ void hfi_translate_init(void) {
 
 #include "decode-hfi.c.inc"
 
-static void nop(DisasContext* ctx) {
-    tcg_gen_and_i64(cpu_reg(ctx, 1), cpu_reg(ctx, 1), cpu_reg(ctx, 1));
-}
-
-
 static bool trans_HFI_SRB(DisasContext* ctx, arg_HFI_SRB* a) {
-    /* HFI Set Region Base - write gpr_src to region base address */
-    uint32_t region_id = a->rn;
-    TCGv_i64 src = cpu_reg(ctx, a->gpr);
-    
-    /* Map region_id to appropriate region struct */
-    if (region_id < 2) {
-        /* implicit_code[0-1] */
-        tcg_gen_mov_i64(tcg_hfi.regions.implicit_code[region_id].reg_base_addr, src);
-    } else if (region_id < 6) {
-        /* implicit_data[0-3] */
-        tcg_gen_mov_i64(tcg_hfi.regions.implicit_data[region_id - 2].reg_base_addr, src);
-    } else if (region_id < 10) {
-        /* explicit_data[0-3] */
-        tcg_gen_mov_i64(tcg_hfi.regions.explicit_data[region_id - 6].reg_base_addr, src);
-    }
+    gen_helper_hfi_srb(tcg_env, tcg_constant_i32(a->rn), cpu_reg(ctx, a->gpr));
     return true;
 }
 
 static bool trans_HFI_GRB(DisasContext* ctx, arg_HFI_GRB* a) {
-    /* HFI Get Region Base - read region base address into gpr_dst */
-    uint32_t region_id = a->rn;
-    TCGv_i64 dst = cpu_reg(ctx, a->gpr);
-    
-    /* Map region_id to appropriate region struct */
-    if (region_id < 2) {
-        /* implicit_code[0-1] */
-        tcg_gen_mov_i64(dst, tcg_hfi.regions.implicit_code[region_id].reg_base_addr);
-    } else if (region_id < 6) {
-        /* implicit_data[0-3] */
-        tcg_gen_mov_i64(dst, tcg_hfi.regions.implicit_data[region_id - 2].reg_base_addr);
-    } else if (region_id < 10) {
-        /* explicit_data[0-3] */
-        tcg_gen_mov_i64(dst, tcg_hfi.regions.explicit_data[region_id - 6].reg_base_addr);
-    }
+    gen_helper_hfi_grb(cpu_reg(ctx, a->gpr), tcg_env, tcg_constant_i32(a->rn));
     return true;
 }
 
 static bool trans_HFI_SRM(DisasContext* ctx, arg_HFI_SRM* a) {
-    /* HFI Set Region Mask - write gpr_src to region mask/bound */
-    uint32_t region_id = a->rn;
-    TCGv_i64 src = cpu_reg(ctx, a->gpr);
-    
-    /* Map region_id to appropriate region struct */
-    if (region_id < 2) {
-        /* implicit_code[0-1] - uses reg_lsb_mask */
-        tcg_gen_mov_i64(tcg_hfi.regions.implicit_code[region_id].reg_lsb_mask, src);
-    } else if (region_id < 6) {
-        /* implicit_data[0-3] - uses reg_lsb_mask */
-        tcg_gen_mov_i64(tcg_hfi.regions.implicit_data[region_id - 2].reg_lsb_mask, src);
-    } else if (region_id < 10) {
-        /* explicit_data[0-3] - uses reg_bound_addr */
-        tcg_gen_mov_i64(tcg_hfi.regions.explicit_data[region_id - 6].reg_bound_addr, src);
-    }
+    gen_helper_hfi_srm(tcg_env, tcg_constant_i32(a->rn), cpu_reg(ctx, a->gpr));
     return true;
 }
 
 static bool trans_HFI_GRM(DisasContext* ctx, arg_HFI_GRM* a) {
-    /* HFI Get Region Mask - read region mask/bound into gpr_dst */
-    uint32_t region_id = a->rn;
-    TCGv_i64 dst = cpu_reg(ctx, a->gpr);
-    
-    /* Map region_id to appropriate region struct */
-    if (region_id < 2) {
-        /* implicit_code[0-1] - uses reg_lsb_mask */
-        tcg_gen_mov_i64(dst, tcg_hfi.regions.implicit_code[region_id].reg_lsb_mask);
-    } else if (region_id < 6) {
-        /* implicit_data[0-3] - uses reg_lsb_mask */
-        tcg_gen_mov_i64(dst, tcg_hfi.regions.implicit_data[region_id - 2].reg_lsb_mask);
-    } else if (region_id < 10) {
-        /* explicit_data[0-3] - uses reg_bound_addr */
-        tcg_gen_mov_i64(dst, tcg_hfi.regions.explicit_data[region_id - 6].reg_bound_addr);
-    }
+    gen_helper_hfi_grm(cpu_reg(ctx, a->gpr), tcg_env, tcg_constant_i32(a->rn));
     return true;
 }
 
 static bool trans_HFI_SRP(DisasContext* ctx, arg_HFI_SRP* a) {
-    /* HFI Set Region Permissions - write gpr_src to region permissions */
-    uint32_t region_id = a->rn;
-    TCGv_i32 src = tcg_temp_new_i32();
-    TCGv_i64 src64 = cpu_reg(ctx, a->gpr);
-    
-    /* Convert 64-bit source to 32-bit for permissions field */
-    tcg_gen_extrl_i64_i32(src, src64);
-    
-    /* Map region_id to appropriate region struct */
-    if (region_id < 2) {
-        /* implicit_code[0-1] - has reg_perm_exec (bit 2) */
-        tcg_gen_andi_i32(src, src, 0x4);  /* Mask to EXEC bit */
-        tcg_gen_mov_i32(tcg_hfi.regions.implicit_code[region_id].reg_perm_exec, src);
-    } else if (region_id < 6) {
-        /* implicit_data[0-3] - has reg_perm_read and reg_perm_write (bits 0-1) */
-        TCGv_i32 perm = tcg_temp_new_i32();
-        tcg_gen_andi_i32(perm, src, 0x1);  /* READ bit (bit 0) */
-        tcg_gen_mov_i32(tcg_hfi.regions.implicit_data[region_id - 2].reg_perm_read, perm);
-        tcg_gen_andi_i32(perm, src, 0x2);  /* WRITE bit (bit 1) */
-        tcg_gen_shri_i32(perm, perm, 1);
-        tcg_gen_mov_i32(tcg_hfi.regions.implicit_data[region_id - 2].reg_perm_write, perm);
-    } else if (region_id < 10) {
-        /* explicit_data[0-3] - has reg_perm_read and reg_perm_write (bits 0-1) */
-        TCGv_i32 perm = tcg_temp_new_i32();
-        tcg_gen_andi_i32(perm, src, 0x1);  /* READ bit (bit 0) */
-        tcg_gen_mov_i32(tcg_hfi.regions.explicit_data[region_id - 6].reg_perm_read, perm);
-        tcg_gen_andi_i32(perm, src, 0x2);  /* WRITE bit (bit 1) */
-        tcg_gen_shri_i32(perm, perm, 1);
-        tcg_gen_mov_i32(tcg_hfi.regions.explicit_data[region_id - 6].reg_perm_write, perm);
-    }
+    gen_helper_hfi_srp(tcg_env, tcg_constant_i32(a->rn), cpu_reg(ctx, a->gpr));
     return true;
 }
 
 static bool trans_HFI_GRP(DisasContext* ctx, arg_HFI_GRP* a) {
-    /* HFI Get Region Permissions - read region permissions into gpr_dst */
-    uint32_t region_id = a->rn;
-    TCGv_i64 dst = cpu_reg(ctx, a->gpr);
-    TCGv_i32 perm32 = tcg_temp_new_i32();
-    TCGv_i64 perm64 = tcg_temp_new_i64();
-    
-    /* Map region_id to appropriate region struct */
-    if (region_id < 2) {
-        /* implicit_code[0-1] - read reg_perm_exec (bit 2) */
-        tcg_gen_mov_i32(perm32, tcg_hfi.regions.implicit_code[region_id].reg_perm_exec);
-        tcg_gen_extu_i32_i64(perm64, perm32);
-        tcg_gen_mov_i64(dst, perm64);
-    } else if (region_id < 6) {
-        /* implicit_data[0-3] - read reg_perm_read and reg_perm_write */
-        TCGv_i32 read_perm = tcg_temp_new_i32();
-        TCGv_i32 write_perm = tcg_temp_new_i32();
-        tcg_gen_mov_i32(read_perm, tcg_hfi.regions.implicit_data[region_id - 2].reg_perm_read);
-        tcg_gen_mov_i32(write_perm, tcg_hfi.regions.implicit_data[region_id - 2].reg_perm_write);
-        /* Reconstruct: read_perm in bit 0, write_perm in bit 1 */
-        tcg_gen_shli_i32(write_perm, write_perm, 1);
-        tcg_gen_or_i32(perm32, read_perm, write_perm);
-        tcg_gen_extu_i32_i64(perm64, perm32);
-        tcg_gen_mov_i64(dst, perm64);
-    } else if (region_id < 10) {
-        /* explicit_data[0-3] - read reg_perm_read and reg_perm_write */
-        TCGv_i32 read_perm = tcg_temp_new_i32();
-        TCGv_i32 write_perm = tcg_temp_new_i32();
-        tcg_gen_mov_i32(read_perm, tcg_hfi.regions.explicit_data[region_id - 6].reg_perm_read);
-        tcg_gen_mov_i32(write_perm, tcg_hfi.regions.explicit_data[region_id - 6].reg_perm_write);
-        /* Reconstruct: read_perm in bit 0, write_perm in bit 1 */
-        tcg_gen_shli_i32(write_perm, write_perm, 1);
-        tcg_gen_or_i32(perm32, read_perm, write_perm);
-        tcg_gen_extu_i32_i64(perm64, perm32);
-        tcg_gen_mov_i64(dst, perm64);
-    }
+    gen_helper_hfi_grp(cpu_reg(ctx, a->gpr), tcg_env, tcg_constant_i32(a->rn));
     return true;
 }
 
 static bool trans_HFI_SEH(DisasContext* ctx, arg_HFI_SEH* a) {
-    /* HFI Set Exit Handler - write gpr to exit handler address */
-    TCGv_i64 src = cpu_reg(ctx, a->gpr);
-    TCGv_ptr handler_ptr = tcg_temp_new_ptr();
-    
-    /* Convert 64-bit register to pointer for handler address */
-    tcg_gen_mov_i64((TCGv_i64)handler_ptr, src);
-    tcg_gen_mov_ptr(tcg_hfi.exit_state.reg_exit_handler_addr, handler_ptr);
-    
+    gen_helper_hfi_seh(tcg_env, cpu_reg(ctx, a->gpr));
     return true;
 }
 
 static bool trans_HFI_GEH(DisasContext* ctx, arg_HFI_GEH* a) {
-    /* HFI Get Exit Handler - read exit handler address into gpr */
-    TCGv_i64 dst = cpu_reg(ctx, a->gpr);
-    TCGv_ptr handler_ptr = tcg_temp_new_ptr();
-    
-    /* Convert pointer handler address to 64-bit register */
-    tcg_gen_mov_ptr(handler_ptr, tcg_hfi.exit_state.reg_exit_handler_addr);
-    tcg_gen_mov_i64(dst, (TCGv_i64)handler_ptr);
-    
+    gen_helper_hfi_geh(cpu_reg(ctx, a->gpr), tcg_env);
     return true;
 }
 
 static bool trans_HFI_ENTER(DisasContext* ctx, arg_HFI_ENTER* a) {
-    /* HFI Enter Protected Region */
-    nop(ctx);
+    gen_helper_hfi_enter(tcg_env, cpu_reg(ctx, a->gpr), cpu_reg(ctx, a->optr));
     return true;
 }
 
 static bool trans_HFI_EXIT(DisasContext* ctx, arg_HFI_EXIT* a) {
-    /* HFI Exit Protected Region */
-    nop(ctx);
+    gen_helper_hfi_exit(tcg_env);
     return true;
 }
 
@@ -366,7 +239,7 @@ static bool trans_HFI_SR(DisasContext* ctx, arg_HFI_SR* a) {
      * Load two 64-bit HFI region descriptors from memory
      * The address is in register specified by region_ptr_gpr
      * Reads two 64-bit values at [rn] and [rn+8]
-     * Writes to the HFI region registers hfi_implicit_region_base[region_number] and [region_number+1]
+     * Writes to the HFI region registers hfi.regions[region_number]
      */
 
     TCGv_i64 region_ptr = cpu_reg_sp(ctx, a->region_ptr_gpr);
@@ -391,13 +264,16 @@ static bool trans_HFI_SR(DisasContext* ctx, arg_HFI_SR* a) {
     tcg_gen_qemu_ld_i64(value2, addr2, memidx, memop);
 
     /* Get region number as a constant for array indexing */
-    int64_t region_number = a->region_number;
+    uint32_t region_number = a->region_number;
 
     /*
-     * Write to HFI region base registers in CPUARMState
+     * Write to HFI region base and mask/bound registers in CPUARMState
+     * Using the unified regions array structure
      */
-    tcg_gen_mov_i64(tcg_hfi.regions.implicit_data[region_number].reg_base_addr, value1);
-    tcg_gen_mov_i64(tcg_hfi.regions.implicit_data[region_number].reg_lsb_mask, value2);
+    if (region_number < HFI_TOTAL_REGIONS) {
+        tcg_gen_mov_i64(tcg_hfi.regions[region_number].reg_base, value1);
+        tcg_gen_mov_i64(tcg_hfi.regions[region_number].reg_mask_or_bound, value2);
+    }
 
     /* Temporary registers are freed automatically by TCG */
     return true;
