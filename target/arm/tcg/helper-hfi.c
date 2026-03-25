@@ -24,14 +24,36 @@
 #include "../hfi.h"
 // clang-format on
 
-static inline bool hfi_check_region_locked_access(CPUARMState* env) {
-    return hfi_is_hfi_enabled(env->hfi.control_config.reg_enabled) &&
-           hfi_is_region_locked(env->hfi.control_config.reg_config_opts);
+// ===============================================================================
+// =================================== HELPERS ===================================
+// ===============================================================================
+
+static inline bool hfi_verify_region_access(CPUARMState* env, uint32_t region_id) {
+    // generate exception if region is locked
+    if (hfi_is_hfi_enabled(env->hfi.control_config.reg_enabled) &&
+        hfi_is_region_locked(env->hfi.control_config.reg_config_opts)) {
+        // for now, just return false to indicate invalid access
+        return false;
+    }
+    return true;
 }
+
+static inline bool hfi_verify_region_id(uint32_t region_id) {
+    // generate exception if region id is out of bounds
+    if (!HFI_REGION_ID_IS_VALID(region_id)) {
+        // for now, just return false to indicate invalid access
+        return false;
+    }
+    return true;
+}
+
+// ===============================================================================
+// ==================================== DEFS =====================================
+// ===============================================================================
 
 /* Set Region Base */
 void HELPER(hfi_srb)(CPUARMState* env, uint32_t region_id, uint64_t value) {
-    if (!hfi_check_region_locked_access(env) || region_id >= HFI_TOTAL_REGIONS) {
+    if (!hfi_verify_region_id(region_id) || !hfi_verify_region_access(env, region_id)) {
         return;
     }
 
@@ -40,8 +62,9 @@ void HELPER(hfi_srb)(CPUARMState* env, uint32_t region_id, uint64_t value) {
 
 /* Get Region Base */
 uint64_t HELPER(hfi_grb)(CPUARMState* env, uint32_t region_id) {
-    if (!hfi_check_region_locked_access(env) || region_id >= HFI_TOTAL_REGIONS) {
+    if (!hfi_verify_region_id(region_id)) {
         return 0;
+        
     }
 
     return env->hfi.regions[region_id].reg_base;
@@ -49,7 +72,7 @@ uint64_t HELPER(hfi_grb)(CPUARMState* env, uint32_t region_id) {
 
 /* Set Region Mask/Bound */
 void HELPER(hfi_srm)(CPUARMState* env, uint32_t region_id, uint64_t value) {
-    if (!hfi_check_region_locked_access(env) || region_id >= HFI_TOTAL_REGIONS) {
+    if (!hfi_verify_region_id(region_id) || !hfi_verify_region_access(env, region_id)) {
         return;
     }
 
@@ -58,7 +81,7 @@ void HELPER(hfi_srm)(CPUARMState* env, uint32_t region_id, uint64_t value) {
 
 /* Get Region Mask/Bound */
 uint64_t HELPER(hfi_grm)(CPUARMState* env, uint32_t region_id) {
-    if (!hfi_check_region_locked_access(env) || region_id >= HFI_TOTAL_REGIONS) {
+    if (!hfi_verify_region_id(region_id)) {
         return 0;
     }
 
@@ -67,21 +90,27 @@ uint64_t HELPER(hfi_grm)(CPUARMState* env, uint32_t region_id) {
 
 /* Set Region Permissions */
 void HELPER(hfi_srp)(CPUARMState* env, uint32_t region_id, uint64_t value) {
-    if (!hfi_check_region_locked_access(env) || region_id >= HFI_TOTAL_REGIONS) {
+    if (!hfi_verify_region_id(region_id) || !hfi_verify_region_access(env, region_id)) {
         return;
     }
 
-    // TOOD FIX: we should only allow setting of the permission bits, not the flags bits
-    env->hfi.regions[region_id].reg_perms_flags = value & HFI_PERM_ALL_MASK;
+    // if region is code
+    if (HFI_REGION_IS_IMPLICIT_CODE(region_id)) {
+        // only allow EXEC permission for code regions, ignore other bits
+        value &= HFI_PERM_EXEC;
+    } else {
+        // for data regions, only allow READ/WRITE permissions, ignore other bits
+        value &= (HFI_PERM_READ | HFI_PERM_WRITE);
+    }
+
+    // set the permission
+    env->hfi.regions[region_id].reg_perms_flags &= ~HFI_PERM_ALL_MASK;  // Clear existing permission bits
+    env->hfi.regions[region_id].reg_perms_flags |= value;
 }
 
 /* Get Region Permissions */
 uint64_t HELPER(hfi_grp)(CPUARMState* env, uint32_t region_id) {
-    if (!hfi_check_region_locked_access(env) || region_id >= HFI_TOTAL_REGIONS) {
-        return 0;
-    }
-
-    return env->hfi.regions[region_id].reg_perms_flags;
+    return env->hfi.regions[region_id].reg_perms_flags & HFI_PERM_ALL_MASK;  // Return only the permission bits
 }
 
 /* Set Exit Handler */
@@ -89,22 +118,37 @@ void HELPER(hfi_seh)(CPUARMState* env, uint64_t value) {
     if (!hfi_is_hfi_enabled(env->hfi.control_config.reg_enabled)) {
         return;
     }
+    
     env->hfi.exit_state.reg_exit_handler_addr = (uintptr_t)value;
 }
 
 /* Get Exit Handler */
 uint64_t HELPER(hfi_geh)(CPUARMState* env) {
-    if (!hfi_is_hfi_enabled(env->hfi.control_config.reg_enabled)) {
-        return 0;
-    }
-    return (uint64_t)(uintptr_t)env->hfi.exit_state.reg_exit_handler_addr;
+    return (uint64_t)env->hfi.exit_state.reg_exit_handler_addr;
 }
 
 /* Enter Protected Region */
-void HELPER(hfi_enter)(CPUARMState* env, uint64_t region_id, uint64_t arg2) {
+void HELPER(hfi_enter)(CPUARMState* env, uint64_t jump_target, uint64_t options) {
+    // if we are already in hfi, we need to trigger exception
+    if (hfi_is_hfi_enabled(env->hfi.control_config.reg_enabled)) {
+        // for now, just ret
+        return;
+    }
+
+    env->hfi.control_config.reg_enabled = 1;
+    env->hfi.control_config.reg_config_opts = options;
+    env->pc = jump_target;
 }
 
 /* Exit Protected Region */
 void HELPER(hfi_exit)(CPUARMState* env) {
-    /* Placeholder for EXIT logic */
+    // if we are not in hfi, this should be an exception
+    if (!hfi_is_hfi_enabled(env->hfi.control_config.reg_enabled)) {
+        // for now, just ret
+        return;
+    }
+
+    env->hfi.control_config.reg_enabled = 0;
+
+    // we need to jump to the exit handler
 }
