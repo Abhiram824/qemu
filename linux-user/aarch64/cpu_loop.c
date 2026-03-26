@@ -17,6 +17,7 @@
  *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
+// clang-format off
 #include "qemu/osdep.h"
 #include "qemu.h"
 #include "user-internals.h"
@@ -26,11 +27,11 @@
 #include "semihosting/common-semi.h"
 #include "target/arm/syndrome.h"
 #include "target/arm/cpu-features.h"
+// clang-format on
 
 /* AArch64 main loop */
-void cpu_loop(CPUARMState *env)
-{
-    CPUState *cs = env_cpu(env);
+void cpu_loop(CPUARMState* env) {
+    CPUState* cs = env_cpu(env);
     int trapnr, ec, fsc, si_code, si_signo;
     abi_long ret;
 
@@ -41,86 +42,93 @@ void cpu_loop(CPUARMState *env)
         process_queued_cpu_work(cs);
 
         switch (trapnr) {
-        case EXCP_SWI:
-            /* On syscall, PSTATE.ZA is preserved, PSTATE.SM is cleared. */
-            aarch64_set_svcr(env, 0, R_SVCR_SM_MASK);
-            ret = do_syscall(env,
-                             env->xregs[8],
-                             env->xregs[0],
-                             env->xregs[1],
-                             env->xregs[2],
-                             env->xregs[3],
-                             env->xregs[4],
-                             env->xregs[5],
-                             0, 0);
-            if (ret == -QEMU_ERESTARTSYS) {
-                env->pc -= 4;
-            } else if (ret != -QEMU_ESIGRETURN) {
-                env->xregs[0] = ret;
-            }
-            break;
-        case EXCP_INTERRUPT:
-            /* just indicate that signals should be handled asap */
-            break;
-        case EXCP_UDEF:
-            force_sig_fault(TARGET_SIGILL, TARGET_ILL_ILLOPN, env->pc);
-            break;
-        case EXCP_PREFETCH_ABORT:
-        case EXCP_DATA_ABORT:
-            ec = syn_get_ec(env->exception.syndrome);
-            switch (ec) {
-            case EC_DATAABORT:
-            case EC_INSNABORT:
-                /* Both EC have the same format for FSC, or close enough. */
-                fsc = extract32(env->exception.syndrome, 0, 6);
-                switch (fsc) {
-                case 0x04 ... 0x07: /* Translation fault, level {0-3} */
-                    si_signo = TARGET_SIGSEGV;
-                    si_code = TARGET_SEGV_MAPERR;
-                    break;
-                case 0x09 ... 0x0b: /* Access flag fault, level {1-3} */
-                case 0x0d ... 0x0f: /* Permission fault, level {1-3} */
-                    si_signo = TARGET_SIGSEGV;
-                    si_code = TARGET_SEGV_ACCERR;
-                    break;
-                case 0x11: /* Synchronous Tag Check Fault */
-                    si_signo = TARGET_SIGSEGV;
-                    si_code = TARGET_SEGV_MTESERR;
-                    break;
-                case 0x21: /* Alignment fault */
-                    si_signo = TARGET_SIGBUS;
-                    si_code = TARGET_BUS_ADRALN;
-                    break;
-                default:
-                    g_assert_not_reached();
+            case EXCP_SWI:
+                /* On syscall, PSTATE.ZA is preserved, PSTATE.SM is cleared. */
+                aarch64_set_svcr(env, 0, R_SVCR_SM_MASK);
+                ret = do_syscall(env,
+                                 env->xregs[8],
+                                 env->xregs[0],
+                                 env->xregs[1],
+                                 env->xregs[2],
+                                 env->xregs[3],
+                                 env->xregs[4],
+                                 env->xregs[5],
+                                 0, 0);
+                if (ret == -QEMU_ERESTARTSYS) {
+                    env->pc -= 4;
+                } else if (ret != -QEMU_ESIGRETURN) {
+                    env->xregs[0] = ret;
                 }
                 break;
-            case EC_PCALIGNMENT:
-                si_signo = TARGET_SIGBUS;
-                si_code = TARGET_BUS_ADRALN;
+            case EXCP_INTERRUPT:
+                /* just indicate that signals should be handled asap */
                 break;
+            case EXCP_UDEF:
+                force_sig_fault(TARGET_SIGILL, TARGET_ILL_ILLOPN, env->pc);
+                break;
+            case EXCP_PREFETCH_ABORT:
+            case EXCP_DATA_ABORT:
+                ec = syn_get_ec(env->exception.syndrome);
+                switch (ec) {
+                    case EC_DATAABORT:
+                    case EC_INSNABORT:
+                        /* Both EC have the same format for FSC, or close enough. */
+                        fsc = extract32(env->exception.syndrome, 0, 6);
+                        switch (fsc) {
+                            case 0x04 ... 0x07: /* Translation fault, level {0-3} */
+                                si_signo = TARGET_SIGSEGV;
+                                si_code = TARGET_SEGV_MAPERR;
+                                break;
+                            case 0x09 ... 0x0b: /* Access flag fault, level {1-3} */
+                            case 0x0d ... 0x0f: /* Permission fault, level {1-3} */
+                                si_signo = TARGET_SIGSEGV;
+                                si_code = TARGET_SEGV_ACCERR;
+                                break;
+                            case 0x11: /* Synchronous Tag Check Fault */
+                                si_signo = TARGET_SIGSEGV;
+                                si_code = TARGET_SEGV_MTESERR;
+                                break;
+                            case 0x21: /* Alignment fault */
+                                si_signo = TARGET_SIGBUS;
+                                si_code = TARGET_BUS_ADRALN;
+                                break;
+                            default:
+                                g_assert_not_reached();
+                        }
+                        break;
+                    case EC_PCALIGNMENT:
+                        si_signo = TARGET_SIGBUS;
+                        si_code = TARGET_BUS_ADRALN;
+                        break;
+                    default:
+                        g_assert_not_reached();
+                }
+                force_sig_fault(si_signo, si_code, env->exception.vaddress);
+                break;
+            case EXCP_DEBUG:
+            case EXCP_BKPT:
+                force_sig_fault(TARGET_SIGTRAP, TARGET_TRAP_BRKPT, env->pc);
+                break;
+            case EXCP_SEMIHOST:
+                do_common_semihosting(cs);
+                env->pc += 4;
+                break;
+            case EXCP_YIELD:
+                /* nothing to do here for user-mode, just resume guest code */
+                break;
+            case EXCP_ATOMIC:
+                cpu_exec_step_atomic(cs);
+                break;
+
+            // ================================== HFI Exception Handling ================================
+            case EXCP_HFI:
+                // TODO IMPLEMENT SWITCH TO EXIT HANDLER?
+                break;
+            // ================================== HFI Exception Handling ================================
+
             default:
-                g_assert_not_reached();
-            }
-            force_sig_fault(si_signo, si_code, env->exception.vaddress);
-            break;
-        case EXCP_DEBUG:
-        case EXCP_BKPT:
-            force_sig_fault(TARGET_SIGTRAP, TARGET_TRAP_BRKPT, env->pc);
-            break;
-        case EXCP_SEMIHOST:
-            do_common_semihosting(cs);
-            env->pc += 4;
-            break;
-        case EXCP_YIELD:
-            /* nothing to do here for user-mode, just resume guest code */
-            break;
-        case EXCP_ATOMIC:
-            cpu_exec_step_atomic(cs);
-            break;
-        default:
-            EXCP_DUMP(env, "qemu: unhandled CPU exception 0x%x - aborting\n", trapnr);
-            abort();
+                EXCP_DUMP(env, "qemu: unhandled CPU exception 0x%x - aborting\n", trapnr);
+                abort();
         }
 
         /* Check for MTE asynchronous faults */
@@ -137,12 +145,11 @@ void cpu_loop(CPUARMState *env)
     }
 }
 
-void target_cpu_copy_regs(CPUArchState *env, target_pt_regs *regs)
-{
-    ARMCPU *cpu = env_archcpu(env);
-    CPUState *cs = env_cpu(env);
-    TaskState *ts = get_task_state(cs);
-    struct image_info *info = ts->info;
+void target_cpu_copy_regs(CPUArchState* env, target_pt_regs* regs) {
+    ARMCPU* cpu = env_archcpu(env);
+    CPUState* cs = env_cpu(env);
+    TaskState* ts = get_task_state(cs);
+    struct image_info* info = ts->info;
     int i;
 
     if (!(arm_feature(env, ARM_FEATURE_AARCH64))) {
