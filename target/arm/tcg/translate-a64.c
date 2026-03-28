@@ -3584,6 +3584,11 @@ static bool trans_STR_i(DisasContext *s, arg_ldst_imm *a)
 
 static bool trans_LDR_i(DisasContext *s, arg_ldst_imm *a)
 {
+    TCGv_i64 addr = tcg_temp_new_i64();
+    tcg_gen_addi_i64(addr, cpu_reg_sp(s, a->rn), a->imm);
+    gen_helper_hfi_addr_in_region(tcg_env, addr,
+                                   tcg_constant_i32(1),
+                                   tcg_constant_i32(0));
     bool iss_sf, iss_valid = !a->w;
     TCGv_i64 clean_addr, dirty_addr, tcg_rt;
     int memidx = get_a64_user_mem_index(s, a->unpriv);

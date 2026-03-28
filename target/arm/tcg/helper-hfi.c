@@ -232,3 +232,28 @@ void HELPER(hfi_exit)(CPUARMState* env) {
     /* Exit to main loop so it restarts at the new PC */
     cpu_loop_exit(cpu);
 }
+
+void HELPER(hfi_addr_in_region)(CPUARMState* env, uint64_t addr, u_int32_t load, u_int32_t store) {
+    if (!env->hfi.control_config.reg_enabled) {
+        return;
+    }
+    
+    for (int i = 0; i < HFI_TOTAL_REGIONS; i++) {
+        uint64_t base = env->hfi.regions[i].reg_base;
+        uint64_t mask_or_bound = env->hfi.regions[i].reg_mask_or_bound;
+        uint64_t perms = env->hfi.regions[i].reg_perms_flags;
+
+        if (base <= addr && addr < (base + mask_or_bound)) {
+            if (load && (perms & HFI_PERM_READ)) {
+                return;
+            }
+            if (store && (perms & HFI_PERM_WRITE)) {
+                return;
+            }
+        }
+
+    }
+    
+    hfi_raise_exception(env);
+    
+}
