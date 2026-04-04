@@ -2821,6 +2821,7 @@ static bool trans_SVC(DisasContext *s, arg_i *a)
      * mandated, to ensure that single-stepping a system call
      * instruction works properly.
      */
+    
     uint32_t syndrome = syn_aa64_svc(a->imm);
     if (s->fgt_svc) {
         gen_exception_insn_el(s, 0, EXCP_UDEF, syndrome, 2);
