@@ -74,9 +74,11 @@ static inline bool hfi_is_region_id_valid(uint32_t region_id) {
  * No access control - these are setup registers
  */
 void HELPER(hfi_srb)(CPUARMState* env, uint32_t region_id, uint64_t value) {
-    static int x = 0;
-    qemu_log("hfi_srb: region_id=%u, value=0x%lx, x=%d\n", region_id, value, x++);
-    if (!hfi_is_region_id_valid(region_id) || true) {
+    if (!hfi_is_region_id_valid(region_id)) {
+        hfi_raise_exception(env);
+        return;
+    }
+    if (hfi_is_enabled(env) && hfi_is_locked(env)) {
         hfi_raise_exception(env);
         return;
     }
@@ -104,6 +106,10 @@ void HELPER(hfi_srm)(CPUARMState* env, uint32_t region_id, uint64_t value) {
         hfi_raise_exception(env);
         return;
     }
+    if (hfi_is_enabled(env) && hfi_is_locked(env)) {
+        hfi_raise_exception(env);
+        return;
+    }
     env->hfi.regions[region_id].reg_mask_or_bound = value;
 }
 
@@ -116,6 +122,7 @@ uint64_t HELPER(hfi_grm)(CPUARMState* env, uint32_t region_id) {
         hfi_raise_exception(env);
         return 0;
     }
+
     return env->hfi.regions[region_id].reg_mask_or_bound;
 }
 
@@ -129,6 +136,10 @@ uint64_t HELPER(hfi_grm)(CPUARMState* env, uint32_t region_id) {
  */
 void HELPER(hfi_srp)(CPUARMState* env, uint32_t region_id, uint64_t value) {
     if (!hfi_is_region_id_valid(region_id)) {
+        hfi_raise_exception(env);
+        return;
+    }
+    if (hfi_is_enabled(env) && hfi_is_locked(env)) {
         hfi_raise_exception(env);
         return;
     }
@@ -167,7 +178,7 @@ uint64_t HELPER(hfi_grp)(CPUARMState* env, uint32_t region_id) {
  * Raises: EXCP_HFI if HFI not enabled (invalid HFI enable switch access)
  */
 void HELPER(hfi_seh)(CPUARMState* env, uint64_t value) {
-    if (!hfi_is_enabled(env)) {
+    if (hfi_is_enabled(env) && hfi_is_locked(env)) {
         hfi_raise_exception(env);
         return;
     }
@@ -193,7 +204,7 @@ uint64_t HELPER(hfi_geh)(CPUARMState* env) {
  */
 void HELPER(hfi_enter)(CPUARMState* env, uint64_t jump_target, uint64_t options) {
     CPUState* cpu = env_cpu(env);
-    
+
     /* Cannot nest HFI enter - must not already be enabled */
     if (hfi_is_enabled(env)) {
         hfi_raise_exception(env);
@@ -204,7 +215,7 @@ void HELPER(hfi_enter)(CPUARMState* env, uint64_t jump_target, uint64_t options)
     env->hfi.control_config.reg_enabled = 1;
     env->hfi.control_config.reg_config_opts = options;
     env->pc = jump_target;
-    
+
     /* Exit to main loop so it restarts at the new PC */
     cpu_loop_exit(cpu);
 }
@@ -216,7 +227,7 @@ void HELPER(hfi_enter)(CPUARMState* env, uint64_t jump_target, uint64_t options)
  */
 void HELPER(hfi_exit)(CPUARMState* env) {
     CPUState* cpu = env_cpu(env);
-    
+
     /* Cannot exit if not currently in HFI mode */
     if (!hfi_is_enabled(env)) {
         hfi_raise_exception(env);
@@ -228,7 +239,7 @@ void HELPER(hfi_exit)(CPUARMState* env) {
 
     /* Jump to exit handler address */
     env->pc = env->hfi.exit_state.reg_exit_handler_addr;
-    
+
     /* Exit to main loop so it restarts at the new PC */
     cpu_loop_exit(cpu);
 }

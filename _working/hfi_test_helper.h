@@ -1,4 +1,35 @@
 
+
+
+// ===============================================================================
+// ================================= HFI CONSTS ==================================
+// ===============================================================================
+
+#define HFI_OPT_LOCK_REGIONS 0x1
+
+
+/* HFI_FaultReason */
+#define HFI_FAULT_OUT_OF_BOUNDS 1
+#define HFI_FAULT_PERMISSION 2
+
+/* HFI_FaultOperation */
+#define HFI_FAULT_OPERATION_LOAD 1
+#define HFI_FAULT_OPERATION_STORE 2
+#define HFI_FAULT_OPERATION_FETCH 3
+
+/* HFI_ExitReason */
+#define HFI_EXIT_CALLED 1
+#define HFI_SYSCALL_REQUESTED 2
+
+/* HFI_Permissions */
+#define HFI_PERM_READ 0x1
+#define HFI_PERM_WRITE 0x2
+#define HFI_PERM_EXEC 0x4
+#define HFI_PERM_ALL_MASK (HFI_PERM_READ | HFI_PERM_WRITE | HFI_PERM_EXEC)
+
+/* HFI_Flags */
+#define HFI_REGION_IS_LARGE 0x8
+
 // =======================================================================
 // =======================================================================
 // MACROS for custom instructions
@@ -8,6 +39,8 @@
 // =======================================================================
 // helpers
 // =======================================================================
+
+#include "stdio.h"
 
 #define _TO_STR(x) #x
 

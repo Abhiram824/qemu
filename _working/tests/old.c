@@ -7,7 +7,7 @@ int test_cstm() {
     int a = 0xDEADBEEF;
     // int a = 0x0;
 
-    int b = 9/0;
+    // int b = 9/0;
 
     // write assembly to run add 1 to a, using register assembly
     asm volatile(
