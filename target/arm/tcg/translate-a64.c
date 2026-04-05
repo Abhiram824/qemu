@@ -2816,44 +2816,50 @@ static bool trans_SYS(DisasContext *s, arg_SYS *a)
 
 static bool trans_SVC(DisasContext *s, arg_i *a)
 {
-    /*
-     * HFI syscall interception:
-     * If HFI is enabled, exit the protected region and let the
-     * exit handler process the syscall request.
-     * Otherwise, handle the syscall normally.
-     */
-    uint32_t syndrome = syn_aa64_svc(a->imm);
-    
-    /* Check HFI status and conditionally intercept */
-    TCGv_i32 hfi_enabled = tcg_temp_new_i32();
-    TCGLabel *skip_hfi_label = gen_new_label();
-    
-    /* Load HFI enabled flag from CPUARMState */
-    tcg_gen_ld_i32(hfi_enabled, tcg_env, 
-                   offsetof(CPUARMState, hfi) + offsetof(CPUArchState_HFI, control_config) + 
-                   offsetof(typeof(((CPUArchState_HFI*)0)->control_config), reg_enabled));
-    
-    /* If HFI is not enabled, skip HFI exit and go to normal SVC handling */
-    tcg_gen_brcondi_i32(TCG_COND_EQ, hfi_enabled, 0, skip_hfi_label);
-    
-    /* HFI is enabled - exit to handler with SYSCALL_REQUESTED reason */
-    gen_helper_hfi_exit(tcg_env, tcg_constant_i32(HFI_SYSCALL_REQUESTED));
-    
-    /* Normal SVC handling */
-    gen_set_label(skip_hfi_label);
+    // TODO: bug. for some reaons does both exit handler and other thing
 
     /*
-     * For SVC, HVC and SMC we advance the single-step state
-     * machine before taking the exception. This is architecturally
-     * mandated, to ensure that single-stepping a system call
-     * instruction works properly.
+     * HFI syscall interception:
+     * If HFI is enabled, exit the protected region with SYSCALL_REQUESTED.
+     * Otherwise, handle the syscall normally.
      */
+    TCGv_i32 hfi_enabled = tcg_temp_new_i32();
+    DisasLabel normal_svc_label = gen_disas_label(s);
+    DisasLabel end_label = gen_disas_label(s);
+    
+    /* Load HFI enabled flag from CPUARMState.hfi.control_config.reg_enabled */
+    /* Calculate offset: offset to hfi struct + offset to control_config + offset to reg_enabled */
+    int hfi_enabled_offset = offsetof(CPUARMState, hfi) + 
+                             offsetof(CPUArchState_HFI, control_config);
+    tcg_gen_ld_i32(hfi_enabled, tcg_env, hfi_enabled_offset);
+    
+    /* If HFI is NOT enabled (== 0), branch to normal SVC handling */
+    tcg_gen_brcondi_i32(TCG_COND_EQ, hfi_enabled, 0, normal_svc_label.label);
+    
+    /* HFI is enabled (!= 0) - exit to handler with SYSCALL_REQUESTED reason */
+    gen_helper_hfi_exit(tcg_env, tcg_constant_i32(HFI_SYSCALL_REQUESTED));
+    s->base.is_jmp = DISAS_NORETURN;
+    tcg_gen_br(end_label.label);
+    
+    /* Normal SVC handling when HFI is disabled */
+    set_disas_label(s, normal_svc_label);
+    
+    /*
+    * For SVC, HVC and SMC we advance the single-step state
+    * machine before taking the exception. This is architecturally
+    * mandated, to ensure that single-stepping a system call
+    * instruction works properly.
+    */
+    uint32_t syndrome = syn_aa64_svc(a->imm);
+
     if (s->fgt_svc) {
         gen_exception_insn_el(s, 0, EXCP_UDEF, syndrome, 2);
-        return true;
+    } else {
+        gen_ss_advance(s);
+        gen_exception_insn(s, 4, EXCP_SWI, syndrome);
     }
-    gen_ss_advance(s);
-    gen_exception_insn(s, 4, EXCP_SWI, syndrome);
+
+    set_disas_label(s, end_label);
     return true;
 }
 

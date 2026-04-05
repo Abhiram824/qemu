@@ -18,12 +18,12 @@
  */
 
 /* Region-based helpers */
-DEF_HELPER_3(hfi_srb, void, env, i32, i64)
-DEF_HELPER_FLAGS_2(hfi_grb, TCG_CALL_NO_WG, i64, env, i32)
-DEF_HELPER_3(hfi_srm, void, env, i32, i64)
-DEF_HELPER_FLAGS_2(hfi_grm, TCG_CALL_NO_WG, i64, env, i32)
-DEF_HELPER_3(hfi_srp, void, env, i32, i64)
-DEF_HELPER_FLAGS_2(hfi_grp, TCG_CALL_NO_WG, i64, env, i32)
+DEF_HELPER_3(hfi_srb, void, env, i64, i64)
+DEF_HELPER_FLAGS_2(hfi_grb, TCG_CALL_NO_WG, i64, env, i64)
+DEF_HELPER_3(hfi_srm, void, env, i64, i64)
+DEF_HELPER_FLAGS_2(hfi_grm, TCG_CALL_NO_WG, i64, env, i64)
+DEF_HELPER_3(hfi_srp, void, env, i64, i64)
+DEF_HELPER_FLAGS_2(hfi_grp, TCG_CALL_NO_WG, i64, env, i64)
 
 /* Fault state helpers with privilege checks */
 DEF_HELPER_FLAGS_1(hfi_gfs, TCG_CALL_NO_WG, i64, env)

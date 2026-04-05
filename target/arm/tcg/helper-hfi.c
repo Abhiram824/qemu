@@ -61,7 +61,7 @@ static inline bool hfi_is_locked(CPUARMState* env) {
  * Check if region ID is valid (pure boolean check, no exception)
  * Returns: true if valid (0 to HFI_TOTAL_REGIONS-1), false otherwise
  */
-static inline bool hfi_is_region_id_valid(uint32_t region_id) {
+static inline bool hfi_is_region_id_valid(uint64_t region_id) {
     return HFI_REGION_ID_IS_VALID(region_id);
 }
 
@@ -73,7 +73,7 @@ static inline bool hfi_is_region_id_valid(uint32_t region_id) {
  * Set Region Base
  * No access control - these are setup registers
  */
-void HELPER(hfi_srb)(CPUARMState* env, uint32_t region_id, uint64_t value) {
+void HELPER(hfi_srb)(CPUARMState* env, uint64_t region_id, uint64_t value) {
     if (!hfi_is_region_id_valid(region_id)) {
         hfi_raise_exception(env);
         return;
@@ -89,7 +89,7 @@ void HELPER(hfi_srb)(CPUARMState* env, uint32_t region_id, uint64_t value) {
  * Get Region Base
  * No access control - these are setup registers
  */
-uint64_t HELPER(hfi_grb)(CPUARMState* env, uint32_t region_id) {
+uint64_t HELPER(hfi_grb)(CPUARMState* env, uint64_t region_id) {
     if (!hfi_is_region_id_valid(region_id)) {
         hfi_raise_exception(env);
         return 0;
@@ -101,7 +101,7 @@ uint64_t HELPER(hfi_grb)(CPUARMState* env, uint32_t region_id) {
  * Set Region Mask/Bound
  * No access control - these are setup registers
  */
-void HELPER(hfi_srm)(CPUARMState* env, uint32_t region_id, uint64_t value) {
+void HELPER(hfi_srm)(CPUARMState* env, uint64_t region_id, uint64_t value) {
     if (!hfi_is_region_id_valid(region_id)) {
         hfi_raise_exception(env);
         return;
@@ -117,7 +117,7 @@ void HELPER(hfi_srm)(CPUARMState* env, uint32_t region_id, uint64_t value) {
  * Get Region Mask/Bound
  * No access control - these are setup registers
  */
-uint64_t HELPER(hfi_grm)(CPUARMState* env, uint32_t region_id) {
+uint64_t HELPER(hfi_grm)(CPUARMState* env, uint64_t region_id) {
     if (!hfi_is_region_id_valid(region_id)) {
         hfi_raise_exception(env);
         return 0;
@@ -134,7 +134,7 @@ uint64_t HELPER(hfi_grm)(CPUARMState* env, uint32_t region_id) {
  *   - Code regions (0-1): only EXEC permission allowed
  *   - Data regions (2-9): only READ/WRITE permissions allowed
  */
-void HELPER(hfi_srp)(CPUARMState* env, uint32_t region_id, uint64_t value) {
+void HELPER(hfi_srp)(CPUARMState* env, uint64_t region_id, uint64_t value) {
     if (!hfi_is_region_id_valid(region_id)) {
         hfi_raise_exception(env);
         return;
@@ -160,7 +160,7 @@ void HELPER(hfi_srp)(CPUARMState* env, uint32_t region_id, uint64_t value) {
  * Get Region Permissions
  * No access control - these are setup registers
  */
-uint64_t HELPER(hfi_grp)(CPUARMState* env, uint32_t region_id) {
+uint64_t HELPER(hfi_grp)(CPUARMState* env, uint64_t region_id) {
     if (!hfi_is_region_id_valid(region_id)) {
         hfi_raise_exception(env);
         return 0;
@@ -291,8 +291,8 @@ void HELPER(hfi_enter)(CPUARMState* env, uint64_t jump_target, uint64_t options)
 void HELPER(hfi_exit)(CPUARMState* env, uint32_t exit_cause) {
     CPUState* cpu = env_cpu(env);
 
-    qemu_log("[LOOK EHRRHUROE]Helper hfi_exit called with cause %u\n", exit_cause);
-
+    qemu_log("[HELPER] Exiting HFI mode with exit cause: %u\n", exit_cause);
+    
     /* Cannot exit if not currently in HFI mode */
     if (!hfi_is_enabled(env)) {
         hfi_raise_exception(env);

@@ -152,32 +152,32 @@ void hfi_translate_init(void) {
 #include "decode-hfi.c.inc"
 
 static bool trans_HFI_SRB(DisasContext* ctx, arg_HFI_SRB* a) {
-    gen_helper_hfi_srb(tcg_env, tcg_constant_i32(a->rn), cpu_reg(ctx, a->gpr));
+    gen_helper_hfi_srb(tcg_env, cpu_reg(ctx, a->rn), cpu_reg(ctx, a->gpr));
     return true;
 }
 
 static bool trans_HFI_GRB(DisasContext* ctx, arg_HFI_GRB* a) {
-    gen_helper_hfi_grb(cpu_reg(ctx, a->gpr), tcg_env, tcg_constant_i32(a->rn));
+    gen_helper_hfi_grb(cpu_reg(ctx, a->gpr), tcg_env, cpu_reg(ctx, a->rn));
     return true;
 }
 
 static bool trans_HFI_SRM(DisasContext* ctx, arg_HFI_SRM* a) {
-    gen_helper_hfi_srm(tcg_env, tcg_constant_i32(a->rn), cpu_reg(ctx, a->gpr));
+    gen_helper_hfi_srm(tcg_env, cpu_reg(ctx, a->rn), cpu_reg(ctx, a->gpr));
     return true;
 }
 
 static bool trans_HFI_GRM(DisasContext* ctx, arg_HFI_GRM* a) {
-    gen_helper_hfi_grm(cpu_reg(ctx, a->gpr), tcg_env, tcg_constant_i32(a->rn));
+    gen_helper_hfi_grm(cpu_reg(ctx, a->gpr), tcg_env, cpu_reg(ctx, a->rn));
     return true;
 }
 
 static bool trans_HFI_SRP(DisasContext* ctx, arg_HFI_SRP* a) {
-    gen_helper_hfi_srp(tcg_env, tcg_constant_i32(a->rn), cpu_reg(ctx, a->gpr));
+    gen_helper_hfi_srp(tcg_env, cpu_reg(ctx, a->rn), cpu_reg(ctx, a->gpr));
     return true;
 }
 
 static bool trans_HFI_GRP(DisasContext* ctx, arg_HFI_GRP* a) {
-    gen_helper_hfi_grp(cpu_reg(ctx, a->gpr), tcg_env, tcg_constant_i32(a->rn));
+    gen_helper_hfi_grp(cpu_reg(ctx, a->gpr), tcg_env, cpu_reg(ctx, a->rn));
     return true;
 }
 

@@ -58,6 +58,49 @@
     (0xE7C00000 | ((region_number & 0x7) << 5) | (region_ptr_gpr & 0x1F))
 
 // =======================================================================
+// Fault State Bitvector Accessors (reg_fault_state)
+// ========================================================================
+// Bit layout:
+// [0]      : fault_occurred (1 bit)
+// [2:1]    : fault_operation (2 bits)
+// [4:3]    : fault_reason (2 bits)
+// [9:5]    : region_id (5 bits)
+// [63:10]  : reserved (54 bits)
+// ========================================================================
+
+#define HFI_FAULT_STATE_GET_OCCURRED(state)     (((state) >> 0) & 0x1ULL)
+#define HFI_FAULT_STATE_SET_OCCURRED(state, val) \
+    ((state) = (((state) & ~(0x1ULL << 0)) | (((uint64_t)(val) & 0x1ULL) << 0)))
+
+#define HFI_FAULT_STATE_GET_OPERATION(state)    (((state) >> 1) & 0x3ULL)
+#define HFI_FAULT_STATE_SET_OPERATION(state, val) \
+    ((state) = (((state) & ~(0x3ULL << 1)) | (((uint64_t)(val) & 0x3ULL) << 1)))
+
+#define HFI_FAULT_STATE_GET_REASON(state)       (((state) >> 3) & 0x3ULL)
+#define HFI_FAULT_STATE_SET_REASON(state, val) \
+    ((state) = (((state) & ~(0x3ULL << 3)) | (((uint64_t)(val) & 0x3ULL) << 3)))
+
+#define HFI_FAULT_STATE_GET_REGION_ID(state)    (((state) >> 5) & 0x1FULL)
+#define HFI_FAULT_STATE_SET_REGION_ID(state, val) \
+    ((state) = (((state) & ~(0x1FULL << 5)) | (((uint64_t)(val) & 0x1FULL) << 5)))
+
+// =======================================================================
+// Exit State Bitvector Accessors (reg_exit_state)
+// ========================================================================
+// Bit layout:
+// [1:0]    : exit_reason (2 bits)
+// [63:2]   : exit_pc_offset (62 bits) - stores (PC >> 2)
+// ========================================================================
+
+#define HFI_EXIT_STATE_GET_REASON(state)        (((state) >> 0) & 0x3ULL)
+#define HFI_EXIT_STATE_SET_REASON(state, val) \
+    ((state) = (((state) & ~(0x3ULL << 0)) | (((uint64_t)(val) & 0x3ULL) << 0)))
+
+#define HFI_EXIT_STATE_GET_PC(state)            (((state) >> 2) << 2)  /* Reconstruct PC from offset */
+#define HFI_EXIT_STATE_SET_PC_AND_REASON(pc, reason) \
+    ((((uint64_t)(pc) >> 2) << 2) | (((uint64_t)(reason) & 0x3ULL)))
+
+// =======================================================================
 // actual instruction macros
 // =======================================================================
 
@@ -73,29 +116,29 @@
 /* For GET ops: gpr_dst (destination) is param 1, region_id (source) is param 2 */
 /* All HFI instructions start with 0x02xxxxxx base opcode */
 
-/* HFI_SRB <region_id> <gpr_src>: Set Region Base - write from gpr_src to region_id */
-#define HFI_SRB_VAL(region_id, gpr_src) \
-    (0x02000000 | ((region_id & 0x0F) << 5) | (gpr_src & 0x1F))
+/* HFI_SRB <region_gpr> <value_gpr>: Set Region Base - write from value_gpr to region_gpr */
+#define HFI_SRB_VAL(region_gpr, value_gpr) \
+    (0x02000000 | ((region_gpr & 0x1F) << 5) | (value_gpr & 0x1F))
 
-/* HFI_GRB <gpr_dst> <region_id>: Get Region Base - read region_id into gpr_dst */
-#define HFI_GRB_VAL(gpr_dst, region_id) \
-    (0x02010000 | ((region_id & 0x0F) << 5) | (gpr_dst & 0x1F))
+/* HFI_GRB <value_gpr> <region_gpr>: Get Region Base - read region_gpr into value_gpr */
+#define HFI_GRB_VAL(value_gpr, region_gpr) \
+    (0x02010000 | ((region_gpr & 0x1F) << 5) | (value_gpr & 0x1F))
 
-/* HFI_SRM <region_id> <gpr_src>: Set Region Mask - write from gpr_src to region_id */
-#define HFI_SRM_VAL(region_id, gpr_src) \
-    (0x02020000 | ((region_id & 0x0F) << 5) | (gpr_src & 0x1F))
+/* HFI_SRM <region_gpr> <value_gpr>: Set Region Mask - write from value_gpr to region_gpr */
+#define HFI_SRM_VAL(region_gpr, value_gpr) \
+    (0x02020000 | ((region_gpr & 0x1F) << 5) | (value_gpr & 0x1F))
 
-/* HFI_GRM <gpr_dst> <region_id>: Get Region Mask - read region_id into gpr_dst */
-#define HFI_GRM_VAL(gpr_dst, region_id) \
-    (0x02030000 | ((region_id & 0x0F) << 5) | (gpr_dst & 0x1F))
+/* HFI_GRM <value_gpr> <region_gpr>: Get Region Mask - read region_gpr into value_gpr */
+#define HFI_GRM_VAL(value_gpr, region_gpr) \
+    (0x02030000 | ((region_gpr & 0x1F) << 5) | (value_gpr & 0x1F))
 
-/* HFI_SRP <region_id> <gpr_src>: Set Region Permissions - write from gpr_src to region_id */
-#define HFI_SRP_VAL(region_id, gpr_src) \
-    (0x02040000 | ((region_id & 0x0F) << 5) | (gpr_src & 0x1F))
+/* HFI_SRP <region_gpr> <value_gpr>: Set Region Permissions - write from value_gpr to region_gpr */
+#define HFI_SRP_VAL(region_gpr, value_gpr) \
+    (0x02040000 | ((region_gpr & 0x1F) << 5) | (value_gpr & 0x1F))
 
-/* HFI_GRP <gpr_dst> <region_id>: Get Region Permissions - read region_id into gpr_dst */
-#define HFI_GRP_VAL(gpr_dst, region_id) \
-    (0x02050000 | ((region_id & 0x0F) << 5) | (gpr_dst & 0x1F))
+/* HFI_GRP <value_gpr> <region_gpr>: Get Region Permissions - read region_gpr into value_gpr */
+#define HFI_GRP_VAL(value_gpr, region_gpr) \
+    (0x02050000 | ((region_gpr & 0x1F) << 5) | (value_gpr & 0x1F))
 
 #define HFI_SEH_VAL(gpr) \
     (0x02060000 | (gpr & 0x1F))
@@ -126,23 +169,23 @@
     (0x020D0000 | (gpr & 0x1F))
 
 /* HFI instruction macros */
-#define HFI_SRB(region_id, gpr_src) \
-    _TO_ASM_INSTR_STR(HFI_SRB_VAL(region_id, gpr_src))
+#define HFI_SRB(region_gpr, value_gpr) \
+    _TO_ASM_INSTR_STR(HFI_SRB_VAL(region_gpr, value_gpr))
 
-#define HFI_GRB(gpr_dst, region_id) \
-    _TO_ASM_INSTR_STR(HFI_GRB_VAL(gpr_dst, region_id))
+#define HFI_GRB(value_gpr, region_gpr) \
+    _TO_ASM_INSTR_STR(HFI_GRB_VAL(value_gpr, region_gpr))
 
-#define HFI_SRM(region_id, gpr_src) \
-    _TO_ASM_INSTR_STR(HFI_SRM_VAL(region_id, gpr_src))
+#define HFI_SRM(region_gpr, value_gpr) \
+    _TO_ASM_INSTR_STR(HFI_SRM_VAL(region_gpr, value_gpr))
 
-#define HFI_GRM(gpr_dst, region_id) \
-    _TO_ASM_INSTR_STR(HFI_GRM_VAL(gpr_dst, region_id))
+#define HFI_GRM(value_gpr, region_gpr) \
+    _TO_ASM_INSTR_STR(HFI_GRM_VAL(value_gpr, region_gpr))
 
-#define HFI_SRP(region_id, gpr_src) \
-    _TO_ASM_INSTR_STR(HFI_SRP_VAL(region_id, gpr_src))
+#define HFI_SRP(region_gpr, value_gpr) \
+    _TO_ASM_INSTR_STR(HFI_SRP_VAL(region_gpr, value_gpr))
 
-#define HFI_GRP(gpr_dst, region_id) \
-    _TO_ASM_INSTR_STR(HFI_GRP_VAL(gpr_dst, region_id))
+#define HFI_GRP(value_gpr, region_gpr) \
+    _TO_ASM_INSTR_STR(HFI_GRP_VAL(value_gpr, region_gpr))
 
 #define HFI_SEH(gpr) \
     _TO_ASM_INSTR_STR(HFI_SEH_VAL(gpr))
@@ -172,73 +215,73 @@
 // helper functions (inlined)
 // =======================================================================
 
-inline void do_hfi_srb(uint32_t region_id, uint64_t value) {
+static inline void do_hfi_srb(uint32_t region_id, uint64_t value) {
     asm volatile(
         "mov x0, %0\n"
         "mov x1, %1\n"
-        "" HFI_SRB(0, 0)  // Set region base
+        "" HFI_SRB(0, 1)  // Set region base: region_id in x0, value in x1
         :
         : "r"(region_id), "r"(value)
         : "x0", "x1");
 }
 
-inline uint64_t do_hfi_grb(uint32_t region_id) {
+static inline uint64_t do_hfi_grb(uint32_t region_id) {
     uint64_t result;
     asm volatile(
         "mov x0, %0\n"
-        "" HFI_GRB(0, 0)  // Get region base into x0
-        "mov %0, x0\n"
+        "" HFI_GRB(1, 0)  // Get region base: region_id in x0, result into x1
+        "mov %0, x1\n"
         : "=r"(result)
         : "r"(region_id)
-        : "x0");
+        : "x0", "x1");
     return result;
 }
 
-inline void do_hfi_srm(uint32_t region_id, uint64_t value) {
+static inline void do_hfi_srm(uint32_t region_id, uint64_t value) {
     asm volatile(
         "mov x0, %0\n"
         "mov x1, %1\n"
-        "" HFI_SRM(0, 0)  // Set region mask
+        "" HFI_SRM(0, 1)  // Set region mask: region_id in x0, value in x1
         :
         : "r"(region_id), "r"(value)
         : "x0", "x1");
 }
 
-inline uint64_t do_hfi_grm(uint32_t region_id) {
+static inline uint64_t do_hfi_grm(uint32_t region_id) {
     uint64_t result;
     asm volatile(
         "mov x0, %0\n"
-        "" HFI_GRM(0, 0)  // Get region mask into x0
-        "mov %0, x0\n"
+        "" HFI_GRM(1, 0)  // Get region mask: region_id in x0, result into x1
+        "mov %0, x1\n"
         : "=r"(result)
         : "r"(region_id)
-        : "x0");
+        : "x0", "x1");
     return result;
 }
 
-inline void do_hfi_srp(uint32_t region_id, uint64_t value) {
+static inline void do_hfi_srp(uint32_t region_id, uint64_t value) {
     asm volatile(
         "mov x0, %0\n"
         "mov x1, %1\n"
-        "" HFI_SRP(0, 0)  // Set region permissions
+        "" HFI_SRP(0, 1)  // Set region permissions: region_id in x0, value in x1
         :
         : "r"(region_id), "r"(value)
         : "x0", "x1");
 }
 
-inline uint64_t do_hfi_grp(uint32_t region_id) {
+static inline uint64_t do_hfi_grp(uint32_t region_id) {
     uint64_t result;
     asm volatile(
         "mov x0, %0\n"
-        "" HFI_GRP(0, 0)  // Get region permissions into x0
-        "mov %0, x0\n"
+        "" HFI_GRP(1, 0)  // Get region permissions: region_id in x0, result into x1
+        "mov %0, x1\n"
         : "=r"(result)
         : "r"(region_id)
-        : "x0");
+        : "x0", "x1");
     return result;
 }
 
-inline void do_hfi_seh(uint64_t value) {
+static inline void do_hfi_seh(uint64_t value) {
     asm volatile(
         "mov x0, %0\n"
         "" HFI_SEH(0)  // Set exit handler from x0
@@ -247,7 +290,7 @@ inline void do_hfi_seh(uint64_t value) {
         : "x0");
 }
 
-inline uint64_t do_hfi_geh(void) {
+static inline uint64_t do_hfi_geh(void) {
     uint64_t result;
     asm volatile(
         "mov x0, 0\n"
@@ -259,7 +302,7 @@ inline uint64_t do_hfi_geh(void) {
     return result;
 }
 
-inline void do_hfi_enter(uint64_t jump_target, uint64_t options) __attribute__((noreturn)) {
+static inline void __attribute__((noreturn)) do_hfi_enter(uint64_t jump_target, uint64_t options) {
     asm volatile(
         "mov x0, %0\n"
         "mov x1, %1\n"
@@ -269,7 +312,7 @@ inline void do_hfi_enter(uint64_t jump_target, uint64_t options) __attribute__((
         : "x0", "x1");
 }
 
-inline void do_hfi_exit(void) {
+static inline void do_hfi_exit(void) {
     asm volatile(
         "" HFI_EXIT()  // Exit protected region
         :
@@ -277,7 +320,7 @@ inline void do_hfi_exit(void) {
         :);
 }
 
-inline uint64_t do_hfi_gfs(void) {
+static inline uint64_t do_hfi_gfs(void) {
     uint64_t result;
     asm volatile(
         "mov x0, 0\n"
@@ -289,7 +332,7 @@ inline uint64_t do_hfi_gfs(void) {
     return result;
 }
 
-inline void do_hfi_sfs(uint64_t value) {
+static inline void do_hfi_sfs(uint64_t value) {
     asm volatile(
         "mov x0, %0\n"
         "" HFI_SFS(0)  // Set fault state from x0
@@ -298,7 +341,7 @@ inline void do_hfi_sfs(uint64_t value) {
         : "x0");
 }
 
-inline uint64_t do_hfi_ges(void) {
+static inline uint64_t do_hfi_ges(void) {
     uint64_t result;
     asm volatile(
         "mov x0, 0\n"
@@ -310,7 +353,7 @@ inline uint64_t do_hfi_ges(void) {
     return result;
 }
 
-inline void do_hfi_ses(uint64_t value) {
+static inline void do_hfi_ses(uint64_t value) {
     asm volatile(
         "mov x0, %0\n"
         "" HFI_SES(0)  // Set exit state from x0
