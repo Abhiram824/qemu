@@ -180,7 +180,9 @@ objdump: bin $(TEST_DUMPS)
 # Run a specific test: make run-testname
 run-%: qemu $(OUT_DIR)/%
 	@echo "[RUN] Executing: $*"
+	@echo ">>>>>"
 	@$(QEMU_BIN) $(OUT_DIR)/$*
+	@echo "<<<<<"
 	@echo "[DONE] Test completed with exit code: $$?"
 
 # Debug a specific test: make debug-testname

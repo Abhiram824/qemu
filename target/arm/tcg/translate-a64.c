@@ -2816,34 +2816,35 @@ static bool trans_SYS(DisasContext *s, arg_SYS *a)
 
 static bool trans_SVC(DisasContext *s, arg_i *a)
 {
-    // TODO: bug. for some reaons does both exit handler and other thing
-
     /*
      * HFI syscall interception:
      * If HFI is enabled, exit the protected region with SYSCALL_REQUESTED.
      * Otherwise, handle the syscall normally.
      */
-    TCGv_i32 hfi_enabled = tcg_temp_new_i32();
-    DisasLabel normal_svc_label = gen_disas_label(s);
-    DisasLabel end_label = gen_disas_label(s);
+
     
     /* Load HFI enabled flag from CPUARMState.hfi.control_config.reg_enabled */
-    /* Calculate offset: offset to hfi struct + offset to control_config + offset to reg_enabled */
-    int hfi_enabled_offset = offsetof(CPUARMState, hfi) + 
-                             offsetof(CPUArchState_HFI, control_config);
+    TCGv_i32 hfi_enabled = tcg_temp_new_i32();
+    int hfi_enabled_offset = offsetof(CPUARMState, hfi.control_config.reg_enabled);
     tcg_gen_ld_i32(hfi_enabled, tcg_env, hfi_enabled_offset);
     
+    TCGLabel* label_normal_svc = gen_new_label();
+    
     /* If HFI is NOT enabled (== 0), branch to normal SVC handling */
-    tcg_gen_brcondi_i32(TCG_COND_EQ, hfi_enabled, 0, normal_svc_label.label);
+    tcg_gen_brcondi_i32(TCG_COND_EQ, hfi_enabled, 0, label_normal_svc);
+    gen_helper_debuglog(tcg_env, tcg_constant_i32(1));
+    
+    // ======================= INTERCEPT ========================
     
     /* HFI is enabled (!= 0) - exit to handler with SYSCALL_REQUESTED reason */
     gen_helper_hfi_exit(tcg_env, tcg_constant_i32(HFI_SYSCALL_REQUESTED));
-    s->base.is_jmp = DISAS_NORETURN;
-    tcg_gen_br(end_label.label);
+        
+    // ======================= INTERCEPT ========================
     
-    /* Normal SVC handling when HFI is disabled */
-    set_disas_label(s, normal_svc_label);
+    gen_set_label(label_normal_svc);
+    gen_helper_debuglog(tcg_env, tcg_constant_i32(2));
     
+    // =================== NORMAL SVC =====================
     /*
     * For SVC, HVC and SMC we advance the single-step state
     * machine before taking the exception. This is architecturally
@@ -2851,15 +2852,17 @@ static bool trans_SVC(DisasContext *s, arg_i *a)
     * instruction works properly.
     */
     uint32_t syndrome = syn_aa64_svc(a->imm);
-
+    
     if (s->fgt_svc) {
         gen_exception_insn_el(s, 0, EXCP_UDEF, syndrome, 2);
     } else {
         gen_ss_advance(s);
         gen_exception_insn(s, 4, EXCP_SWI, syndrome);
     }
+    // =================== NORMAL SVC =====================
 
-    set_disas_label(s, end_label);
+    s->base.is_jmp = DISAS_NORETURN;
+
     return true;
 }
 

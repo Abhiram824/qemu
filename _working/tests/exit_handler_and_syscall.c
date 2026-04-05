@@ -20,6 +20,7 @@ asm (
     "stp x0, x1, [sp, #0]\n"
     "stp x2, x3, [sp, #16]\n"
     "stp x4, x5, [sp, #32]\n"
+    "stp x4, x5, [sp, #32]\n"
     "stp x6, x7, [sp, #48]\n"
     "stp x8, x9, [sp, #64]\n"
     "stp x10, x11, [sp, #80]\n"
@@ -33,8 +34,9 @@ asm (
     "stp x26, x27, [sp, #208]\n"
     "stp x28, x29, [sp, #224]\n"
     "str x30, [sp, #240]\n"
+    "mov x0, sp\n"
     
-    // Call the C exit handler - returns exit_state in x0
+    // Call the C exit handler
     "bl exit_handler\n"
     
     // get PC from exit state (bits[63:2]), reconstruct full PC by shifting, and store temporarily
@@ -74,7 +76,7 @@ asm (
     "" HFI_ENTER(17, 16)  // Re-enter HFI mode with options in x17, target in x16
 );
 
-void exit_handler(void) {
+void exit_handler(uint64_t regs[31]) {
     printf("[EXIT_HANDLER] Exit handler called!\n");
 
     // check if its a syscall
@@ -101,6 +103,7 @@ void code_under_hfi() {
 
     // make a syscall
     printf("[INSIDE HFI] Hello from inside the sandbox! Value of x: %lu\n", x);
+    printf("[INSIDE HFI] Hello 2 from inside the sandbox! Value of x: %lu\n", x);
 
     asm volatile(
         "mov x0, %0\n"

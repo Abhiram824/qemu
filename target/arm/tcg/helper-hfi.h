@@ -17,6 +17,10 @@
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
+
+/* DEBUG helpers */
+DEF_HELPER_2(debuglog, void, env, i32)
+
 /* Region-based helpers */
 DEF_HELPER_3(hfi_srb, void, env, i64, i64)
 DEF_HELPER_FLAGS_2(hfi_grb, TCG_CALL_NO_WG, i64, env, i64)
