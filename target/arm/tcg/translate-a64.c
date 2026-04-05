@@ -26,6 +26,7 @@
 #include "semihosting/semihost.h"
 #include "cpregs.h"
 #include "translate-hfi.h"
+#include "../hfi.h"
 
 static TCGv_i64 cpu_X[32];
 static TCGv_i64 cpu_pc;
@@ -2816,13 +2817,37 @@ static bool trans_SYS(DisasContext *s, arg_SYS *a)
 static bool trans_SVC(DisasContext *s, arg_i *a)
 {
     /*
+     * HFI syscall interception:
+     * If HFI is enabled, exit the protected region and let the
+     * exit handler process the syscall request.
+     * Otherwise, handle the syscall normally.
+     */
+    uint32_t syndrome = syn_aa64_svc(a->imm);
+    
+    /* Check HFI status and conditionally intercept */
+    TCGv_i32 hfi_enabled = tcg_temp_new_i32();
+    TCGLabel *skip_hfi_label = gen_new_label();
+    
+    /* Load HFI enabled flag from CPUARMState */
+    tcg_gen_ld_i32(hfi_enabled, tcg_env, 
+                   offsetof(CPUARMState, hfi) + offsetof(CPUArchState_HFI, control_config) + 
+                   offsetof(typeof(((CPUArchState_HFI*)0)->control_config), reg_enabled));
+    
+    /* If HFI is not enabled, skip HFI exit and go to normal SVC handling */
+    tcg_gen_brcondi_i32(TCG_COND_EQ, hfi_enabled, 0, skip_hfi_label);
+    
+    /* HFI is enabled - exit to handler with SYSCALL_REQUESTED reason */
+    gen_helper_hfi_exit(tcg_env, tcg_constant_i32(HFI_SYSCALL_REQUESTED));
+    
+    /* Normal SVC handling */
+    gen_set_label(skip_hfi_label);
+
+    /*
      * For SVC, HVC and SMC we advance the single-step state
      * machine before taking the exception. This is architecturally
      * mandated, to ensure that single-stepping a system call
      * instruction works properly.
      */
-    
-    uint32_t syndrome = syn_aa64_svc(a->imm);
     if (s->fgt_svc) {
         gen_exception_insn_el(s, 0, EXCP_UDEF, syndrome, 2);
         return true;

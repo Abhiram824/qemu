@@ -42,6 +42,49 @@
 
 #define HFI_REGION_ID_IS_VALID(region_id) ((region_id) < HFI_TOTAL_REGIONS)
 
+/* ============================================================================
+ * Fault State Bitvector Accessors (reg_fault_state)
+ * ============================================================================
+ * Bit layout:
+ * [0]      : fault_occurred (1 bit)
+ * [2:1]    : fault_operation (2 bits)
+ * [4:3]    : fault_reason (2 bits)
+ * [9:5]    : region_id (5 bits)
+ * [63:10]  : reserved (54 bits)
+ */
+
+#define HFI_FAULT_STATE_GET_OCCURRED(state)     (((state) >> 0) & 0x1ULL)
+#define HFI_FAULT_STATE_SET_OCCURRED(state, val) \
+    ((state) = (((state) & ~(0x1ULL << 0)) | (((uint64_t)(val) & 0x1ULL) << 0)))
+
+#define HFI_FAULT_STATE_GET_OPERATION(state)    (((state) >> 1) & 0x3ULL)
+#define HFI_FAULT_STATE_SET_OPERATION(state, val) \
+    ((state) = (((state) & ~(0x3ULL << 1)) | (((uint64_t)(val) & 0x3ULL) << 1)))
+
+#define HFI_FAULT_STATE_GET_REASON(state)       (((state) >> 3) & 0x3ULL)
+#define HFI_FAULT_STATE_SET_REASON(state, val) \
+    ((state) = (((state) & ~(0x3ULL << 3)) | (((uint64_t)(val) & 0x3ULL) << 3)))
+
+#define HFI_FAULT_STATE_GET_REGION_ID(state)    (((state) >> 5) & 0x1FULL)
+#define HFI_FAULT_STATE_SET_REGION_ID(state, val) \
+    ((state) = (((state) & ~(0x1FULL << 5)) | (((uint64_t)(val) & 0x1FULL) << 5)))
+
+/* ============================================================================
+ * Exit State Bitvector Accessors (reg_exit_state)
+ * ============================================================================
+ * Bit layout:
+ * [1:0]    : exit_reason (2 bits)
+ * [63:2]   : exit_pc_offset (62 bits) - stores (PC >> 2)
+ */
+
+#define HFI_EXIT_STATE_GET_REASON(state)        (((state) >> 0) & 0x3ULL)
+#define HFI_EXIT_STATE_SET_REASON(state, val) \
+    ((state) = (((state) & ~(0x3ULL << 0)) | (((uint64_t)(val) & 0x3ULL) << 0)))
+
+#define HFI_EXIT_STATE_GET_PC(state)            (((state) >> 2) << 2)  /* Reconstruct PC from offset */
+#define HFI_EXIT_STATE_SET_PC_AND_REASON(pc, reason) \
+    ((((uint64_t)(pc) >> 2) << 2) | (((uint64_t)(reason) & 0x3ULL)))
+
 typedef struct
 {
     struct
@@ -65,42 +108,22 @@ typedef struct
     struct
     {
         /**
-         * The register storing the ID of the region that caused the fault
-         * If the access was OOB and not related to any region, this is set to 255
+         * Fault state bitvector (64-bit):
+         * [0]      : fault_occurred (1 bit) - set if fault detected
+         * [2:1]    : fault_operation (2 bits) - LOAD=1, STORE=2, FETCH=3
+         * [4:3]    : fault_reason (2 bits) - OUT_OF_BOUNDS=1, PERMISSION=2
+         * [9:5]    : region_id (5 bits) - 0-31 (only 0-9 valid, 255 maps to 0)
+         * [63:10]  : reserved (54 bits, padding)
          */
-        uint32_t reg_fault_region_id;  // the region ID that caused the fault (0-5 for implicit regions, 6-9 for explicit regions)
+        uint64_t reg_fault_state;
 
         /**
-         * The registers storing the fault information for the traps
-         * fmt: HFI_FaultReason
+         * Exit state bitvector (64-bit):
+         * [1:0]    : exit_reason (2 bits) - EXIT_CALLED=1, SYSCALL_REQUESTED=2
+         * [63:2]   : exit_pc_offset (62 bits) - (PC >> 2) to store 4-byte-aligned PC
          */
-        uint32_t reg_fault_reason;
-
-        /**
-         * The register storing the fault operation for traps
-         * fmt: HFI_FaultOperation
-         */
-        uint32_t reg_fault_operation;
-
-        /**
-         * Whether a fault has occurred and the exit handler should be called. This is set by instrumentation in the translated code when a fault condition is met, and checked by the main loop to determine whether to call the exit handler.
-         */
-        uint32_t reg_fault_occurred;  // whether a fault has occurred and the exit handler should be called
-    } fault_config;
-
-    struct
-    {
-        /**
-         * The register storing the exit handler address for traps
-         */
-        uintptr_t reg_exit_handler_addr;
-
-        /**
-         * The reason for leaving hfi
-         * fmt: HFI_ExitReason
-         */
-        uint32_t exit_reason;
-    } exit_state;
+        uint64_t reg_exit_state;
+    } exec_state;
 
     struct
     {
@@ -110,6 +133,11 @@ typedef struct
          * bit 0 - whether regions are locked or not
          */
         uint32_t reg_config_opts;
+
+        /**
+         * The exit handler address for traps (moved from exit_state struct)
+         */
+        uintptr_t reg_exit_handler_addr;
     } control_config;
 } CPUArchState_HFI;
 

@@ -169,20 +169,77 @@ uint64_t HELPER(hfi_grp)(CPUARMState* env, uint32_t region_id) {
 }
 
 // ===============================================================================
-// ============================== EXIT HANDLER OPERATIONS =========================
+// ============================= FAULT STATE OPERATIONS ==========================
 // ===============================================================================
 
 /**
+ * Get Fault State (user and kernel allowed)
+ * Returns the fault state bitvector containing:
+ * - fault_occurred (bit 0)
+ * - fault_operation (bits 2:1)
+ * - fault_reason (bits 4:3)
+ * - region_id (bits 9:5)
+ */
+uint64_t HELPER(hfi_gfs)(CPUARMState* env) {
+    return env->hfi.exec_state.reg_fault_state;
+}
+
+/**
+ * Set Fault State (kernel-only)
+ * Allows writing to the fault state bitvector.
+ * Raises: EXCP_HFI if called from user mode (EL==0)
+ */
+void HELPER(hfi_sfs)(CPUARMState* env, uint64_t value) {
+    /* Kernel-only: check execution level (EL0 = user, EL1+ = kernel) */
+    if (arm_current_el(env) == 0) {
+        hfi_raise_exception(env);
+        return;
+    }
+    env->hfi.exec_state.reg_fault_state = value;
+}
+
+// ===============================================================================
+// ============================= EXIT STATE OPERATIONS ===========================
+// ===============================================================================
+
+/**
+ * Get Exit State (user and kernel allowed)
+ * Returns the exit state bitvector containing:
+ * - exit_reason (bits 1:0)
+ * - exit_pc_offset (bits 63:2) where PC = (exit_pc_offset << 2)
+ */
+uint64_t HELPER(hfi_ges)(CPUARMState* env) {
+    return env->hfi.exec_state.reg_exit_state;
+}
+
+/**
+ * Set Exit State (kernel-only)
+ * Allows writing to the exit state bitvector.
+ * Raises: EXCP_HFI if called from user mode (EL==0)
+ */
+void HELPER(hfi_ses)(CPUARMState* env, uint64_t value) {
+    /* Kernel-only: check execution level (EL0 = user, EL1+ = kernel) */
+    if (arm_current_el(env) == 0) {
+        hfi_raise_exception(env);
+        return;
+    }
+    env->hfi.exec_state.reg_exit_state = value;
+}
+
+// ===============================================================================
+
+
+/**
  * Set Exit Handler
- * Requires: HFI enabled
- * Raises: EXCP_HFI if HFI not enabled (invalid HFI enable switch access)
+ * Requires: HFI not locked
+ * Raises: EXCP_HFI if HFI enabled and locked (regions locked while enabled)
  */
 void HELPER(hfi_seh)(CPUARMState* env, uint64_t value) {
     if (hfi_is_enabled(env) && hfi_is_locked(env)) {
         hfi_raise_exception(env);
         return;
     }
-    env->hfi.exit_state.reg_exit_handler_addr = (uintptr_t)value;
+    env->hfi.control_config.reg_exit_handler_addr = (uintptr_t)value;
 }
 
 /**
@@ -190,7 +247,7 @@ void HELPER(hfi_seh)(CPUARMState* env, uint64_t value) {
  * No access control: always allowed
  */
 uint64_t HELPER(hfi_geh)(CPUARMState* env) {
-    return (uint64_t)env->hfi.exit_state.reg_exit_handler_addr;
+    return (uint64_t)env->hfi.control_config.reg_exit_handler_addr;
 }
 
 // ===============================================================================
@@ -211,6 +268,9 @@ void HELPER(hfi_enter)(CPUARMState* env, uint64_t jump_target, uint64_t options)
         return;
     }
 
+    /* Initialize fault state bitvector to 0 (no fault) */
+    env->hfi.exec_state.reg_fault_state = 0;
+
     /* Enable HFI and set configuration options */
     env->hfi.control_config.reg_enabled = 1;
     env->hfi.control_config.reg_config_opts = options;
@@ -224,9 +284,14 @@ void HELPER(hfi_enter)(CPUARMState* env, uint64_t jump_target, uint64_t options)
  * Exit Protected Region
  * Requires: HFI currently enabled
  * Raises: EXCP_HFI if HFI not currently enabled (invalid mode switch)
+ * Parameters:
+ *   env: CPU state
+ *   exit_cause: Reason for exiting (HFI_ExitReason)
  */
-void HELPER(hfi_exit)(CPUARMState* env) {
+void HELPER(hfi_exit)(CPUARMState* env, uint32_t exit_cause) {
     CPUState* cpu = env_cpu(env);
+
+    qemu_log("[LOOK EHRRHUROE]Helper hfi_exit called with cause %u\n", exit_cause);
 
     /* Cannot exit if not currently in HFI mode */
     if (!hfi_is_enabled(env)) {
@@ -234,11 +299,14 @@ void HELPER(hfi_exit)(CPUARMState* env) {
         return;
     }
 
+    /* Pack exit reason and PC into exit state bitvector */
+    env->hfi.exec_state.reg_exit_state = HFI_EXIT_STATE_SET_PC_AND_REASON(env->pc, exit_cause);
+
     /* Disable HFI */
     env->hfi.control_config.reg_enabled = 0;
 
     /* Jump to exit handler address */
-    env->pc = env->hfi.exit_state.reg_exit_handler_addr;
+    env->pc = env->hfi.control_config.reg_exit_handler_addr;
 
     /* Exit to main loop so it restarts at the new PC */
     cpu_loop_exit(cpu);

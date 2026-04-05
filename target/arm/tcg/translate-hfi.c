@@ -66,18 +66,13 @@ static struct {
         TCGv_i32 reg_perms_flags;
     } regions[HFI_TOTAL_REGIONS];
     struct {
-        TCGv_i32 reg_fault_region_id;
-        TCGv_i32 reg_fault_reason;
-        TCGv_i32 reg_fault_operation;
-        TCGv_i32 reg_fault_occurred;
-    } fault_config;
-    struct {
-        TCGv_ptr reg_exit_handler_addr;
-        TCGv_i32 exit_reason;
-    } exit_state;
+        TCGv_i64 reg_fault_state;
+        TCGv_i64 reg_exit_state;
+    } exec_state;
     struct {
         TCGv_i32 reg_enabled;
         TCGv_i32 reg_config_opts;
+        TCGv_ptr reg_exit_handler_addr;
     } control_config;
 } HFI_GLOBAL_TEMP_STRUCT_NAME;
 
@@ -93,19 +88,14 @@ void hfi_translate_init(void) {
         HFI_INIT_FIELD(regions[i].reg_perms_flags);
     }
 
-    /* Initialize fault configuration */
-    HFI_INIT_FIELD(fault_config.reg_fault_region_id);
-    HFI_INIT_FIELD(fault_config.reg_fault_reason);
-    HFI_INIT_FIELD(fault_config.reg_fault_operation);
-    HFI_INIT_FIELD(fault_config.reg_fault_occurred);
-
-    /* Initialize exit state */
-    HFI_INIT_FIELD(exit_state.reg_exit_handler_addr);
-    HFI_INIT_FIELD(exit_state.exit_reason);
+    /* Initialize exec state (fault and exit state bitvectors) */
+    HFI_INIT_FIELD(exec_state.reg_fault_state);
+    HFI_INIT_FIELD(exec_state.reg_exit_state);
 
     /* Initialize control configuration */
     HFI_INIT_FIELD(control_config.reg_enabled);
     HFI_INIT_FIELD(control_config.reg_config_opts);
+    HFI_INIT_FIELD(control_config.reg_exit_handler_addr);
 }
 
 // =============================================================================
@@ -201,13 +191,33 @@ static bool trans_HFI_GEH(DisasContext* ctx, arg_HFI_GEH* a) {
     return true;
 }
 
+static bool trans_HFI_GFS(DisasContext* ctx, arg_HFI_GFS* a) {
+    gen_helper_hfi_gfs(cpu_reg(ctx, a->gpr), tcg_env);
+    return true;
+}
+
+static bool trans_HFI_SFS(DisasContext* ctx, arg_HFI_SFS* a) {
+    gen_helper_hfi_sfs(tcg_env, cpu_reg(ctx, a->gpr));
+    return true;
+}
+
+static bool trans_HFI_GES(DisasContext* ctx, arg_HFI_GES* a) {
+    gen_helper_hfi_ges(cpu_reg(ctx, a->gpr), tcg_env);
+    return true;
+}
+
+static bool trans_HFI_SES(DisasContext* ctx, arg_HFI_SES* a) {
+    gen_helper_hfi_ses(tcg_env, cpu_reg(ctx, a->gpr));
+    return true;
+}
+
 static bool trans_HFI_ENTER(DisasContext* ctx, arg_HFI_ENTER* a) {
     gen_helper_hfi_enter(tcg_env, cpu_reg(ctx, a->gpr), cpu_reg(ctx, a->optr));
     return true;
 }
 
 static bool trans_HFI_EXIT(DisasContext* ctx, arg_HFI_EXIT* a) {
-    gen_helper_hfi_exit(tcg_env);
+    gen_helper_hfi_exit(tcg_env, tcg_constant_i32(HFI_EXIT_CALLED));
     return true;
 }
 

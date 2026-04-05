@@ -25,10 +25,18 @@ DEF_HELPER_FLAGS_2(hfi_grm, TCG_CALL_NO_WG, i64, env, i32)
 DEF_HELPER_3(hfi_srp, void, env, i32, i64)
 DEF_HELPER_FLAGS_2(hfi_grp, TCG_CALL_NO_WG, i64, env, i32)
 
+/* Fault state helpers with privilege checks */
+DEF_HELPER_FLAGS_1(hfi_gfs, TCG_CALL_NO_WG, i64, env)
+DEF_HELPER_2(hfi_sfs, void, env, i64)
+
 /* Exit handler helpers */
 DEF_HELPER_2(hfi_seh, void, env, i64)
 DEF_HELPER_FLAGS_1(hfi_geh, TCG_CALL_NO_WG, i64, env)
 
+/* Exit state helpers with privilege checks */
+DEF_HELPER_FLAGS_1(hfi_ges, TCG_CALL_NO_WG, i64, env)
+DEF_HELPER_2(hfi_ses, void, env, i64)
+
 /* ENTER and EXIT helpers */
 DEF_HELPER_3(hfi_enter, void, env, i64, i64)
-DEF_HELPER_1(hfi_exit, void, env)
+DEF_HELPER_2(hfi_exit, void, env, i32)

@@ -22,6 +22,10 @@ void exit_handler() {
 void code_under_hfi() {
     uint64_t x = 9;
     x += 3;
+    
+    // make a syscall
+    printf("Hello from inside the sandbox! Value of x: %lu\n", x);
+
     asm volatile(
         "mov x0, %0\n"
         "" HFI_EXIT()  // Exit HFI mode, should jump to exit handler
@@ -68,7 +72,7 @@ int test_hfi_enter_exit() {
         "1:\n"
         : [hfi_end_addr] "=m"(hfi_end_addr), [hfi_end_sp] "=m"(hfi_end_sp)  // Output operand
         : [f] "r"(f), [options] "r"(options)                                // Input operands
-        : "x29", "x30"
+        : "x29", "x30" 
     );
 
     return 5;

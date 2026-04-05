@@ -109,6 +109,22 @@
 #define HFI_EXIT_VAL() \
     (0x02090000)
 
+/* HFI_GFS <gpr>: Get Fault State - read fault state into gpr */
+#define HFI_GFS_VAL(gpr) \
+    (0x020A0000 | (gpr & 0x1F))
+
+/* HFI_SFS <gpr>: Set Fault State - write from gpr to fault state */
+#define HFI_SFS_VAL(gpr) \
+    (0x020B0000 | (gpr & 0x1F))
+
+/* HFI_GES <gpr>: Get Exit State - read exit state into gpr */
+#define HFI_GES_VAL(gpr) \
+    (0x020C0000 | (gpr & 0x1F))
+
+/* HFI_SES <gpr>: Set Exit State - write from gpr to exit state */
+#define HFI_SES_VAL(gpr) \
+    (0x020D0000 | (gpr & 0x1F))
+
 /* HFI instruction macros */
 #define HFI_SRB(region_id, gpr_src) \
     _TO_ASM_INSTR_STR(HFI_SRB_VAL(region_id, gpr_src))
@@ -139,6 +155,169 @@
 
 #define HFI_EXIT() \
     _TO_ASM_INSTR_STR(HFI_EXIT_VAL())
+
+#define HFI_GFS(gpr) \
+    _TO_ASM_INSTR_STR(HFI_GFS_VAL(gpr))
+
+#define HFI_SFS(gpr) \
+    _TO_ASM_INSTR_STR(HFI_SFS_VAL(gpr))
+
+#define HFI_GES(gpr) \
+    _TO_ASM_INSTR_STR(HFI_GES_VAL(gpr))
+
+#define HFI_SES(gpr) \
+    _TO_ASM_INSTR_STR(HFI_SES_VAL(gpr))
+
+// =======================================================================
+// helper functions (inlined)
+// =======================================================================
+
+inline void do_hfi_srb(uint32_t region_id, uint64_t value) {
+    asm volatile(
+        "mov x0, %0\n"
+        "mov x1, %1\n"
+        "" HFI_SRB(0, 0)  // Set region base
+        :
+        : "r"(region_id), "r"(value)
+        : "x0", "x1");
+}
+
+inline uint64_t do_hfi_grb(uint32_t region_id) {
+    uint64_t result;
+    asm volatile(
+        "mov x0, %0\n"
+        "" HFI_GRB(0, 0)  // Get region base into x0
+        "mov %0, x0\n"
+        : "=r"(result)
+        : "r"(region_id)
+        : "x0");
+    return result;
+}
+
+inline void do_hfi_srm(uint32_t region_id, uint64_t value) {
+    asm volatile(
+        "mov x0, %0\n"
+        "mov x1, %1\n"
+        "" HFI_SRM(0, 0)  // Set region mask
+        :
+        : "r"(region_id), "r"(value)
+        : "x0", "x1");
+}
+
+inline uint64_t do_hfi_grm(uint32_t region_id) {
+    uint64_t result;
+    asm volatile(
+        "mov x0, %0\n"
+        "" HFI_GRM(0, 0)  // Get region mask into x0
+        "mov %0, x0\n"
+        : "=r"(result)
+        : "r"(region_id)
+        : "x0");
+    return result;
+}
+
+inline void do_hfi_srp(uint32_t region_id, uint64_t value) {
+    asm volatile(
+        "mov x0, %0\n"
+        "mov x1, %1\n"
+        "" HFI_SRP(0, 0)  // Set region permissions
+        :
+        : "r"(region_id), "r"(value)
+        : "x0", "x1");
+}
+
+inline uint64_t do_hfi_grp(uint32_t region_id) {
+    uint64_t result;
+    asm volatile(
+        "mov x0, %0\n"
+        "" HFI_GRP(0, 0)  // Get region permissions into x0
+        "mov %0, x0\n"
+        : "=r"(result)
+        : "r"(region_id)
+        : "x0");
+    return result;
+}
+
+inline void do_hfi_seh(uint64_t value) {
+    asm volatile(
+        "mov x0, %0\n"
+        "" HFI_SEH(0)  // Set exit handler from x0
+        :
+        : "r"(value)
+        : "x0");
+}
+
+inline uint64_t do_hfi_geh(void) {
+    uint64_t result;
+    asm volatile(
+        "mov x0, 0\n"
+        "" HFI_GEH(0)  // Get exit handler into x0
+        "mov %0, x0\n"
+        : "=r"(result)
+        :
+        : "x0");
+    return result;
+}
+
+inline void do_hfi_enter(uint64_t jump_target, uint64_t options) __attribute__((noreturn)) {
+    asm volatile(
+        "mov x0, %0\n"
+        "mov x1, %1\n"
+        "" HFI_ENTER(1, 0)  // Enter with options in x1, target in x0
+        :
+        : "r"(jump_target), "r"(options)
+        : "x0", "x1");
+}
+
+inline void do_hfi_exit(void) {
+    asm volatile(
+        "" HFI_EXIT()  // Exit protected region
+        :
+        :
+        :);
+}
+
+inline uint64_t do_hfi_gfs(void) {
+    uint64_t result;
+    asm volatile(
+        "mov x0, 0\n"
+        "" HFI_GFS(0)  // Get fault state into x0
+        "mov %0, x0\n"
+        : "=r"(result)
+        :
+        : "x0");
+    return result;
+}
+
+inline void do_hfi_sfs(uint64_t value) {
+    asm volatile(
+        "mov x0, %0\n"
+        "" HFI_SFS(0)  // Set fault state from x0
+        :
+        : "r"(value)
+        : "x0");
+}
+
+inline uint64_t do_hfi_ges(void) {
+    uint64_t result;
+    asm volatile(
+        "mov x0, 0\n"
+        "" HFI_GES(0)  // Get exit state into x0
+        "mov %0, x0\n"
+        : "=r"(result)
+        :
+        : "x0");
+    return result;
+}
+
+inline void do_hfi_ses(uint64_t value) {
+    asm volatile(
+        "mov x0, %0\n"
+        "" HFI_SES(0)  // Set exit state from x0
+        :
+        : "r"(value)
+        : "x0");
+}
 
 // =======================================================================
 // testing orchestration macros
