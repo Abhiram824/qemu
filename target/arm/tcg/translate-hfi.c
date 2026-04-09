@@ -202,7 +202,7 @@ static bool trans_HFI_GEH(DisasContext* ctx, arg_HFI_GEH* a) {
 }
 
 static bool trans_HFI_ENTER(DisasContext* ctx, arg_HFI_ENTER* a) {
-    gen_helper_hfi_enter(tcg_env, cpu_reg(ctx, a->gpr), cpu_reg(ctx, a->optr));
+    gen_helper_hfi_enter(tcg_env, cpu_reg(ctx, a->optr), cpu_reg(ctx, a->gpr));
     return true;
 }
 

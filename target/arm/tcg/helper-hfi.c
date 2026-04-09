@@ -74,9 +74,8 @@ static inline bool hfi_is_region_id_valid(uint32_t region_id) {
  * No access control - these are setup registers
  */
 void HELPER(hfi_srb)(CPUARMState* env, uint32_t region_id, uint64_t value) {
-    static int x = 0;
-    qemu_log("hfi_srb: region_id=%u, value=0x%lx, x=%d\n", region_id, value, x++);
-    if (!hfi_is_region_id_valid(region_id) || true) {
+    qemu_log("hfi_srb: region_id=%u, value=0x%lx\n", region_id, value);
+    if (!hfi_is_region_id_valid(region_id)) {
         hfi_raise_exception(env);
         return;
     }
@@ -135,8 +134,8 @@ void HELPER(hfi_srp)(CPUARMState* env, uint32_t region_id, uint64_t value) {
 
     /* Filter permissions based on region type */
     if (HFI_REGION_IS_IMPLICIT_CODE(region_id)) {
-        /* Code regions: only EXEC permission */
-        value &= HFI_PERM_EXEC;
+        /* Code regions: EXEC and READ (read needed to load instructions) */
+        value &= (HFI_PERM_EXEC | HFI_PERM_READ);
     } else {
         /* Data regions: only READ/WRITE permissions */
         value &= (HFI_PERM_READ | HFI_PERM_WRITE);
@@ -167,10 +166,6 @@ uint64_t HELPER(hfi_grp)(CPUARMState* env, uint32_t region_id) {
  * Raises: EXCP_HFI if HFI not enabled (invalid HFI enable switch access)
  */
 void HELPER(hfi_seh)(CPUARMState* env, uint64_t value) {
-    if (!hfi_is_enabled(env)) {
-        hfi_raise_exception(env);
-        return;
-    }
     env->hfi.exit_state.reg_exit_handler_addr = (uintptr_t)value;
 }
 
