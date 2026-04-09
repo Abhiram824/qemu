@@ -122,7 +122,9 @@ void cpu_loop(CPUARMState* env) {
 
             // ================================== HFI Exception Handling ================================
             case EXCP_HFI:
-                // TODO IMPLEMENT SWITCH TO EXIT HANDLER?
+                // TODO IMPLEMENT SWITCH TO EXIT HANDLER? 
+                //temp handling, just kill the process
+                force_sig_fault(TARGET_SIGSEGV, TARGET_SEGV_ACCERR, env->exception.vaddress);
                 break;
             // ================================== HFI Exception Handling ================================
 
