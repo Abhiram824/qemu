@@ -13,6 +13,9 @@ CFLAGS = -static
 ASFLAGS = 
 LDFLAGS = -static
 
+# QEMU runtime flags
+QEMU_RUN_FLAGS = -one-insn-per-tb
+
 # Directories
 TEST_DIR = tests
 OUT_DIR = obj
@@ -181,14 +184,14 @@ objdump: bin $(TEST_DUMPS)
 run-%: qemu $(OUT_DIR)/%
 	@echo "[RUN] Executing: $*"
 	@echo ">>>>>"
-	@$(QEMU_BIN) $(OUT_DIR)/$*
+	@$(QEMU_BIN) $(QEMU_RUN_FLAGS) $(OUT_DIR)/$*
 	@echo "<<<<<"
 	@echo "[DONE] Test completed with exit code: $$?"
 
 # Debug a specific test: make debug-testname
 debug-%: qemu $(OUT_DIR)/%
 	@echo "[DEBUG] Running: $* with gdb"
-	@gdb --args $(QEMU_BIN) $(OUT_DIR)/$*
+	@gdb --args $(QEMU_BIN) $(QEMU_RUN_FLAGS) $(OUT_DIR)/$*
 
 # Run all tests
 run: qemu $(TEST_BIN)
@@ -197,7 +200,7 @@ run: qemu $(TEST_BIN)
 	for test in $(TEST_BIN); do \
 		testname=$$(basename $$test); \
 		echo "[RUN] $$testname"; \
-		if $(QEMU_BIN) $$test; then \
+		if $(QEMU_BIN) $(QEMU_RUN_FLAGS) $$test; then \
 			echo "[PASS] $$testname"; \
 			passed=$$((passed + 1)); \
 		else \

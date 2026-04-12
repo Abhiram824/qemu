@@ -2816,49 +2816,53 @@ static bool trans_SYS(DisasContext *s, arg_SYS *a)
 
 static bool trans_SVC(DisasContext *s, arg_i *a)
 {
-    /*
-     * HFI syscall interception:
-     * If HFI is enabled, exit the protected region with SYSCALL_REQUESTED.
-     * Otherwise, handle the syscall normally.
-     */
 
-    
-    /* Load HFI enabled flag from CPUARMState.hfi.control_config.reg_enabled */
-    TCGv_i32 hfi_enabled = tcg_temp_new_i32();
-    int hfi_enabled_offset = offsetof(CPUARMState, hfi.control_config.reg_enabled);
-    tcg_gen_ld_i32(hfi_enabled, tcg_env, hfi_enabled_offset);
-    
-    TCGLabel* label_normal_svc = gen_new_label();
-    
-    /* If HFI is NOT enabled (== 0), branch to normal SVC handling */
-    tcg_gen_brcondi_i32(TCG_COND_EQ, hfi_enabled, 0, label_normal_svc);
-    gen_helper_debuglog(tcg_env, tcg_constant_i32(1));
-    
-    // ======================= INTERCEPT ========================
-    
-    /* HFI is enabled (!= 0) - exit to handler with SYSCALL_REQUESTED reason */
-    gen_helper_hfi_exit(tcg_env, tcg_constant_i32(HFI_SYSCALL_REQUESTED));
-        
-    // ======================= INTERCEPT ========================
-    
-    gen_set_label(label_normal_svc);
-    gen_helper_debuglog(tcg_env, tcg_constant_i32(2));
-    
-    // =================== NORMAL SVC =====================
+    // ========================= ACTUAL TRANSLATION =========================
+
     /*
     * For SVC, HVC and SMC we advance the single-step state
     * machine before taking the exception. This is architecturally
     * mandated, to ensure that single-stepping a system call
     * instruction works properly.
     */
+    // we need to consume the exception
     uint32_t syndrome = syn_aa64_svc(a->imm);
+
+    if (!s->fgt_svc) {
+        gen_ss_advance(s);
+    }
+
+    // ======================= INTERCEPT ========================
+    /*
+     * HFI syscall interception:
+     * If HFI is enabled, exit the protected region with SYSCALL_REQUESTED.
+     * Otherwise, handle the syscall normally.
+     */
     
+    /* Load HFI enabled flag from CPUARMState.hfi.control_config.reg_enabled */
+    TCGv_i32 hfi_enabled = tcg_temp_new_i32();
+    tcg_gen_ld_i32(hfi_enabled, tcg_env, offsetof(CPUARMState, hfi.control_config.reg_enabled));
+    
+    TCGLabel* label_normal_svc = gen_new_label();
+    
+    /* If HFI is NOT enabled (== 0), branch to normal SVC handling */
+    tcg_gen_brcondi_i32(TCG_COND_EQ, hfi_enabled, 0, label_normal_svc);
+    
+    /* HFI is enabled (!= 0) - exit to handler with SYSCALL_REQUESTED reason */
+    gen_helper_hfi_exit(tcg_env, tcg_constant_i32(HFI_SYSCALL_REQUESTED));
+        
+    gen_set_label(label_normal_svc);
+
+    // ======================= INTERCEPT ========================
+    
+    // =================== NORMAL SVC =====================
+
     if (s->fgt_svc) {
         gen_exception_insn_el(s, 0, EXCP_UDEF, syndrome, 2);
     } else {
-        gen_ss_advance(s);
         gen_exception_insn(s, 4, EXCP_SWI, syndrome);
     }
+
     // =================== NORMAL SVC =====================
 
     s->base.is_jmp = DISAS_NORETURN;

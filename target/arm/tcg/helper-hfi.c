@@ -35,9 +35,9 @@
 
 void HELPER(debuglog)(CPUARMState* env, uint32_t id) {
     static int x = 0;
-    uint64_t x8val = env->xregs[8];
-    uint64_t hfi_enabled = env->hfi.control_config.reg_enabled;
-    qemu_log("q[QEMU_DEBUG_LOG] id=%-3u | x=%-3d | x8=%-7ld | hfienable=%-lx\n", id, x, x8val, hfi_enabled);
+    // uint64_t x8val = env->xregs[8];
+    // uint64_t hfi_enabled = env->hfi.control_config.reg_enabled;
+    // qemu_log("\tq[QEMU_DEBUG_LOG] id=%-3u | x=%-3d | x8=%-7ld | hfienable=%-lx\n", id, x, x8val, hfi_enabled);
     x++;
 }
 
@@ -288,7 +288,7 @@ void HELPER(hfi_enter)(CPUARMState* env, uint64_t jump_target, uint64_t options)
     env->hfi.control_config.reg_config_opts = options;
     env->pc = jump_target;
 
-    qemu_log("q[HFI_ENTER] pc=%lx\n", env->pc);
+    qemu_log("\tq[HFI_ENTER] pc=%lx\n", env->pc);
 
     /* Exit to main loop so it restarts at the new PC */
     cpu_loop_exit(cpu);
@@ -305,7 +305,7 @@ void HELPER(hfi_enter)(CPUARMState* env, uint64_t jump_target, uint64_t options)
 void HELPER(hfi_exit)(CPUARMState* env, uint32_t exit_cause) {
     CPUState* cpu = env_cpu(env);
 
-    qemu_log("q[HELPER] Exiting HFI cause=%u | pc=%lx\n", exit_cause, env->pc);
+    qemu_log("\tq[HELPER] Exiting HFI cause=%u | pc=%lx\n", exit_cause, env->pc);
     
     /* Cannot exit if not currently in HFI mode */
     if (!hfi_is_enabled(env)) {
