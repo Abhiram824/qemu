@@ -132,6 +132,14 @@ $(OUT_DIR):
 HEADERS = $(wildcard *.h) $(wildcard $(TEST_DIR)/*.h)
 
 # ============================================================================
+# Test-Specific Library Configurations
+# ============================================================================
+
+# Configuration for test_zlib
+$(OUT_DIR)/test_zlib_nice: LDLIBS += ./lib/libz.a
+$(OUT_DIR)/test_zlib_evil: LDLIBS += ./lib/libz_malicious.a
+
+# ============================================================================
 # Assembly Generation (C -> .s)
 # ============================================================================
 
@@ -145,7 +153,7 @@ $(OUT_DIR)/%.s: $(TEST_DIR)/%.c $(HEADERS) | $(OUT_DIR)
 
 $(OUT_DIR)/%: $(TEST_DIR)/%.c $(HEADERS) | $(OUT_DIR)
 	@echo "[BIN] Compiling: $< -> $@"
-	@$(CC) $(CFLAGS) $(LDFLAGS) $< -o $@
+	$(CC) $(CFLAGS) $(LDFLAGS) $< -o $@ $(LDLIBS)
 
 # ============================================================================
 # Disassembly Generation (binary -> .dump)

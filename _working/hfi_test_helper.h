@@ -310,6 +310,7 @@ static inline void __attribute__((noreturn)) do_hfi_enter(uint64_t jump_target, 
         :
         : "r"(jump_target), "r"(options)
         : "x0", "x1");
+    __builtin_unreachable();
 }
 
 static inline void do_hfi_exit(void) {
