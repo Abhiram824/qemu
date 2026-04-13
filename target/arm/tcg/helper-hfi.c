@@ -228,17 +228,19 @@ void HELPER(hfi_exit)(CPUARMState* env) {
     cpu_loop_exit(cpu);
 }
 
-void HELPER(hfi_addr_in_region)(CPUARMState* env, uint64_t addr, u_int32_t load, u_int32_t store) {
+void HELPER(hfi_addr_in_region)(CPUARMState* env, uint64_t addr_start, u_int32_t load, u_int32_t store, uint32_t size) {
     if (!env->hfi.control_config.reg_enabled) {
         return;
     }
+
+    uint32_t addr_end = addr_start + size - 1;
     
     for (int i = 0; i < HFI_TOTAL_REGIONS; i++) {
         uint64_t base = env->hfi.regions[i].reg_base;
         uint64_t mask_or_bound = env->hfi.regions[i].reg_mask_or_bound;
         uint64_t perms = env->hfi.regions[i].reg_perms_flags;
 
-        if (base <= addr && addr < (base + mask_or_bound)) {
+        if (base <= addr_start && addr_end < (base + mask_or_bound)) {
             if (load && (perms & HFI_PERM_READ)) {
                 return;
             }

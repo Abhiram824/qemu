@@ -24,7 +24,7 @@ DEF_HELPER_3(hfi_srm, void, env, i32, i64)
 DEF_HELPER_FLAGS_2(hfi_grm, TCG_CALL_NO_WG, i64, env, i32)
 DEF_HELPER_3(hfi_srp, void, env, i32, i64)
 DEF_HELPER_FLAGS_2(hfi_grp, TCG_CALL_NO_WG, i64, env, i32)
-DEF_HELPER_4(hfi_addr_in_region, void, env, i64, i32, i32)
+DEF_HELPER_5(hfi_addr_in_region, void, env, i64, i32, i32, i32)
 
 /* Exit handler helpers */
 DEF_HELPER_2(hfi_seh, void, env, i64)

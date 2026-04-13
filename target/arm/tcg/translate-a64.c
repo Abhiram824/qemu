@@ -286,6 +286,11 @@ static TCGv_i64 gen_mte_check1_mmuidx(DisasContext *s, TCGv_i64 addr,
                                       MemOp memop, bool is_unpriv,
                                       int core_idx)
 {
+    gen_helper_hfi_addr_in_region(tcg_env, addr,
+                                   tcg_constant_i32(!is_write),
+                                   tcg_constant_i32(is_write),
+                                   tcg_constant_i32(memop_size(memop)));
+
     if (tag_checked && s->mte_active[is_unpriv]) {
         TCGv_i64 ret;
         int desc = 0;
@@ -318,6 +323,11 @@ TCGv_i64 gen_mte_check1(DisasContext *s, TCGv_i64 addr, bool is_write,
 TCGv_i64 gen_mte_checkN(DisasContext *s, TCGv_i64 addr, bool is_write,
                         bool tag_checked, int total_size, MemOp single_mop)
 {
+    gen_helper_hfi_addr_in_region(tcg_env, addr,
+                                   tcg_constant_i32(!is_write),
+                                   tcg_constant_i32(is_write),
+                                   tcg_constant_i32(total_size));
+
     if (tag_checked && s->mte_active[0]) {
         TCGv_i64 ret;
         int desc = 0;
