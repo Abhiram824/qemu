@@ -78,6 +78,32 @@
 #define HFI_EXIT_VAL() \
     (0x02090000)
 
+// load instructions with immediate offsets (for testing region access)
+
+// LDRB <rt>, [<rn>, #<imm>] - unsigned byte load with immediate offset
+#define LDRBU_I_INSTR_VAL(rt, rn, imm) \
+    (0x38400000 | ((rt & 0x1F) << 0) | ((rn & 0x1F) << 5) | ((imm & 0x1FF) << 12))
+
+// STRB <rt>, [<rn>, #<imm>] - unsigned byte store with immediate offset
+#define STRBU_I_INSTR_VAL(rt, rn, imm) \
+    (0x38000000 | ((rt & 0x1F) << 0) | ((rn & 0x1F) << 5) | ((imm & 0x1FF) << 12))
+
+#define LDRL_V_INSTR_VAL(rt, rn, imm) \
+    (0x3CC00000 | ((rt & 0x1F) << 0) | ((rn & 0x1F) << 5) | ((imm & 0x1FF) << 12))
+
+#define STRL_V_INSTR_VAL(rt, rn, imm) \
+    (0x3C800000 | ((rt & 0x1F) << 0) | ((rn & 0x1F) << 5) | ((imm & 0x1FF) << 12))
+
+// unsigned , 32 bit valid, no extension, no shift
+#define LDRBU_INSTR_VAL(rt, rn, rm) \
+    (0x38604800 | ((rn & 0x1F) << 5) | (rt & 0x1F)| ((rm & 0x1F) << 16))
+
+#define STRBU_INSTR_VAL(rt, rn, rm) \
+    (0x38204800 | ((rn & 0x1F) << 5) | (rt & 0x1F) | ((rm & 0x1F) << 16) )
+
+#define LDAPRBU_I_INSTR_VAL(rt, rn, imm) \
+    (0x19400000 | ((rn & 0x1F) << 5) | (rt & 0x1F) | ((imm & 0x1FF) << 12) )
+    
 /* HFI instruction macros */
 #define HFI_SRB(region_id, gpr_src) \
     _TO_ASM_INSTR_STR(HFI_SRB_VAL(region_id, gpr_src))
