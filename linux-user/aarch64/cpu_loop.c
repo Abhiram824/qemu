@@ -122,7 +122,8 @@ void cpu_loop(CPUARMState* env) {
 
             // ================================== HFI Exception Handling ================================
             case EXCP_HFI:
-                // TODO IMPLEMENT SWITCH TO EXIT HANDLER?
+                env->hfi.control_config.reg_enabled = 0;
+                env->pc = env->hfi.control_config.reg_exit_handler_addr;
                 break;
             // ================================== HFI Exception Handling ================================
 

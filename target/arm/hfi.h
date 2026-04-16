@@ -141,11 +141,11 @@ typedef struct
     } control_config;
 } CPUArchState_HFI;
 
-inline bool hfi_get_perm_read(uint32_t perms_flags) {
+static inline bool hfi_get_perm_read(uint32_t perms_flags) {
     return (perms_flags & HFI_PERM_READ) != 0;
 }
 
-inline void hfi_set_perm_read(uint32_t* perms_flags, bool can_read) {
+static inline void hfi_set_perm_read(uint32_t* perms_flags, bool can_read) {
     if (can_read) {
         *perms_flags |= HFI_PERM_READ;
     } else {
@@ -153,7 +153,7 @@ inline void hfi_set_perm_read(uint32_t* perms_flags, bool can_read) {
     }
 }
 
-inline void hfi_set_perm_write(uint32_t* perms_flags, bool can_write) {
+static inline void hfi_set_perm_write(uint32_t* perms_flags, bool can_write) {
     if (can_write) {
         *perms_flags |= HFI_PERM_WRITE;
     } else {
@@ -161,11 +161,11 @@ inline void hfi_set_perm_write(uint32_t* perms_flags, bool can_write) {
     }
 }
 
-inline bool hfi_get_perm_exec(uint32_t perms_flags) {
+static inline bool hfi_get_perm_exec(uint32_t perms_flags) {
     return (perms_flags & HFI_PERM_EXEC) != 0;
 }
 
-inline void hfi_set_perm_exec(uint32_t* perms_flags, bool can_exec) {
+static inline void hfi_set_perm_exec(uint32_t* perms_flags, bool can_exec) {
     if (can_exec) {
         *perms_flags |= HFI_PERM_EXEC;
     } else {
@@ -173,11 +173,11 @@ inline void hfi_set_perm_exec(uint32_t* perms_flags, bool can_exec) {
     }
 }
 
-inline bool hfi_get_flag_is_large(uint32_t perms_flags) {
+static inline bool hfi_get_flag_is_large(uint32_t perms_flags) {
     return (perms_flags & HFI_REGION_IS_LARGE) != 0;
 }
 
-inline void hfi_set_flag_is_large(uint32_t* perms_flags, bool is_large) {
+static inline void hfi_set_flag_is_large(uint32_t* perms_flags, bool is_large) {
     if (is_large) {
         *perms_flags |= HFI_REGION_IS_LARGE;
     } else {
@@ -185,11 +185,11 @@ inline void hfi_set_flag_is_large(uint32_t* perms_flags, bool is_large) {
     }
 }
 
-inline bool hfi_is_region_locked(uint32_t config_opts) {
+static inline bool hfi_is_region_locked(uint32_t config_opts) {
     return (config_opts & 0x1) != 0;
 }
 
-inline bool hfi_set_region_locked(uint32_t* config_opts, bool locked) {
+static inline void hfi_set_region_locked(uint32_t* config_opts, bool locked) {
     if (locked) {
         *config_opts |= 0x1;
     } else {
@@ -197,7 +197,7 @@ inline bool hfi_set_region_locked(uint32_t* config_opts, bool locked) {
     }
 }
 
-inline bool hfi_is_hfi_enabled(uint32_t enabled) {
+static inline bool hfi_is_hfi_enabled(uint32_t enabled) {
     return enabled != 0;
 }
 

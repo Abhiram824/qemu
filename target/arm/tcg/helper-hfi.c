@@ -158,8 +158,8 @@ void HELPER(hfi_srp)(CPUARMState* env, uint64_t region_id, uint64_t value) {
 
     /* Filter permissions based on region type */
     if (HFI_REGION_IS_IMPLICIT_CODE(region_id)) {
-        /* Code regions: only EXEC permission */
-        value &= HFI_PERM_EXEC;
+        /* Code regions: EXEC and READ (read needed to load instructions) */
+        value &= (HFI_PERM_EXEC | HFI_PERM_READ);
     } else {
         /* Data regions: only READ/WRITE permissions */
         value &= (HFI_PERM_READ | HFI_PERM_WRITE);
@@ -324,4 +324,44 @@ void HELPER(hfi_exit)(CPUARMState* env, uint32_t exit_cause) {
 
     /* Exit to main loop so it restarts at the new PC */
     cpu_loop_exit(cpu);
+}
+
+void HELPER(hfi_addr_in_region)(CPUARMState* env, uint64_t addr_start, u_int32_t load, u_int32_t store, uint32_t size) {
+    if (!env->hfi.control_config.reg_enabled) {
+        return;
+    }
+
+    uint64_t addr_end = addr_start + size - 1;
+    uint32_t fault_op = load ? HFI_FAULT_OPERATION_LOAD : HFI_FAULT_OPERATION_STORE;
+
+    for (int i = 0; i < HFI_TOTAL_REGIONS; i++) {
+        uint64_t base = env->hfi.regions[i].reg_base;
+        uint64_t mask_or_bound = env->hfi.regions[i].reg_mask_or_bound;
+        uint64_t perms = env->hfi.regions[i].reg_perms_flags;
+
+        if (base <= addr_start && addr_end < (base + mask_or_bound)) {
+            if (load && (perms & HFI_PERM_READ)) {
+                return;
+            }
+            if (store && (perms & HFI_PERM_WRITE)) {
+                return;
+            }
+
+            uint64_t fs = 0;
+            HFI_FAULT_STATE_SET_OCCURRED(fs, 1);
+            HFI_FAULT_STATE_SET_OPERATION(fs, fault_op);
+            HFI_FAULT_STATE_SET_REASON(fs, HFI_FAULT_PERMISSION);
+            HFI_FAULT_STATE_SET_REGION_ID(fs, i);
+            env->hfi.exec_state.reg_fault_state = fs;
+            hfi_raise_exception(env);
+            return;
+        }
+    }
+
+    uint64_t fs = 0;
+    HFI_FAULT_STATE_SET_OCCURRED(fs, 1);
+    HFI_FAULT_STATE_SET_OPERATION(fs, fault_op);
+    HFI_FAULT_STATE_SET_REASON(fs, HFI_FAULT_OUT_OF_BOUNDS);
+    env->hfi.exec_state.reg_fault_state = fs;
+    hfi_raise_exception(env);
 }

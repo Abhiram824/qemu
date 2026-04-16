@@ -287,6 +287,11 @@ static TCGv_i64 gen_mte_check1_mmuidx(DisasContext *s, TCGv_i64 addr,
                                       MemOp memop, bool is_unpriv,
                                       int core_idx)
 {
+    gen_helper_hfi_addr_in_region(tcg_env, addr,
+                                   tcg_constant_i32(!is_write),
+                                   tcg_constant_i32(is_write),
+                                   tcg_constant_i32(memop_size(memop)));
+
     if (tag_checked && s->mte_active[is_unpriv]) {
         TCGv_i64 ret;
         int desc = 0;
@@ -319,6 +324,11 @@ TCGv_i64 gen_mte_check1(DisasContext *s, TCGv_i64 addr, bool is_write,
 TCGv_i64 gen_mte_checkN(DisasContext *s, TCGv_i64 addr, bool is_write,
                         bool tag_checked, int total_size, MemOp single_mop)
 {
+    gen_helper_hfi_addr_in_region(tcg_env, addr,
+                                   tcg_constant_i32(!is_write),
+                                   tcg_constant_i32(is_write),
+                                   tcg_constant_i32(total_size));
+
     if (tag_checked && s->mte_active[0]) {
         TCGv_i64 ret;
         int desc = 0;
@@ -3623,6 +3633,12 @@ static bool trans_STR_i(DisasContext *s, arg_ldst_imm *a)
 
 static bool trans_LDR_i(DisasContext *s, arg_ldst_imm *a)
 {
+    TCGv_i64 addr = tcg_temp_new_i64();
+    tcg_gen_addi_i64(addr, cpu_reg_sp(s, a->rn), a->imm);
+    gen_helper_hfi_addr_in_region(tcg_env, addr,
+                                   tcg_constant_i32(1),
+                                   tcg_constant_i32(0),
+                                   tcg_constant_i32(1 << a->sz));
     bool iss_sf, iss_valid = !a->w;
     TCGv_i64 clean_addr, dirty_addr, tcg_rt;
     int memidx = get_a64_user_mem_index(s, a->unpriv);
