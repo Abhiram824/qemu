@@ -124,7 +124,7 @@ void test_hfi(int load_inside) {
         "mov  x4,  %[data]\n"
         "mov  x1,  %[code]\n"
         "mov  x2,  %[cfg]\n"
-        "" HFI_ENTER(1, 2)
+        "" HFI_ENTER(2, 1)
         "1:\n"
         : [end_addr] "=m"(hfi_end_addr), [end_sp] "=m"(hfi_end_sp)
         : [code] "r"(code), [data] "r"(data), [cfg] "r"(hfi_config)
