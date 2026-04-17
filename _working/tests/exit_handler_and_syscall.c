@@ -162,6 +162,11 @@ int test_hfi_enter_exit(void)
     do_hfi_srb(0, code_region_base);
     do_hfi_srm(0, code_region_mask);
     do_hfi_srp(0, code_region_perms);
+
+    do_hfi_srb(2, 0);
+    do_hfi_srm(2, ~0);
+    do_hfi_srp(2, HFI_PERM_READ | HFI_PERM_WRITE);
+
     do_hfi_seh(exit_handler_addr);
 
     // printf("Exit handler set to scaffold at address: 0x%llx\n", (unsigned long long)exit_handler_addr);
