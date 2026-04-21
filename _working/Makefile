@@ -19,8 +19,10 @@ QEMU_RUN_FLAGS = -one-insn-per-tb
 # Directories
 TEST_DIR = tests
 OUT_DIR = obj
+LIB_DIR = lib
 QEMU_BUILD = ../build
 QEMU_BIN = $(QEMU_BUILD)/qemu-aarch64
+QEMU_SYSROOT = /usr/aarch64-linux-gnu
 
 # Get all test sources and derive names
 TEST_SOURCES = $(wildcard $(TEST_DIR)/*.c)
@@ -136,8 +138,25 @@ HEADERS = $(wildcard *.h) $(wildcard $(TEST_DIR)/*.h)
 # ============================================================================
 
 # Configuration for test_zlib
-$(OUT_DIR)/test_zlib_nice: LDLIBS += ./lib/libz.a
-$(OUT_DIR)/test_zlib_evil: LDLIBS += ./lib/libz_malicious.a
+ZLIB_NICE_SO = $(LIB_DIR)/libz_nice.so
+$(ZLIB_NICE_SO): $(LIB_DIR)/libz.a
+	@echo "[SO] Linking: $< -> $@"
+	$(CC) -shared -o $@ -Wl,--whole-archive $< -Wl,--no-whole-archive
+$(OUT_DIR)/test_zlib_nice: CFLAGS := $(filter-out -static,$(CFLAGS))
+$(OUT_DIR)/test_zlib_nice: CFLAGS += -fno-stack-protector
+$(OUT_DIR)/test_zlib_nice: LDFLAGS := $(filter-out -static,$(LDFLAGS))
+$(OUT_DIR)/test_zlib_nice: LDLIBS += -ldl
+$(OUT_DIR)/test_zlib_nice: $(ZLIB_NICE_SO)
+
+ZLIB_EVIL_SO = $(LIB_DIR)/libz_evil.so
+$(ZLIB_EVIL_SO): $(LIB_DIR)/libz_malicious.a
+	@echo "[SO] Linking: $< -> $@"
+	$(CC) -shared -o $@ -Wl,--whole-archive $< -Wl,--no-whole-archive
+$(OUT_DIR)/test_zlib_evil: CFLAGS := $(filter-out -static,$(CFLAGS))
+$(OUT_DIR)/test_zlib_evil: CFLAGS += -fno-stack-protector
+$(OUT_DIR)/test_zlib_evil: LDFLAGS := $(filter-out -static,$(LDFLAGS))
+$(OUT_DIR)/test_zlib_evil: LDLIBS += -ldl
+$(OUT_DIR)/test_zlib_evil: $(ZLIB_EVIL_SO)
 
 # ============================================================================
 # Assembly Generation (C -> .s)
@@ -192,7 +211,11 @@ objdump: bin $(TEST_DUMPS)
 run-%: qemu $(OUT_DIR)/%
 	@echo "[RUN] Executing: $*"
 	@echo ">>>>>"
-	@$(QEMU_BIN) $(QEMU_RUN_FLAGS) $(OUT_DIR)/$*
+	@if [ "$*" = "test_zlib_nice" ] || [ "$*" = "test_zlib_evil" ]; then \
+		$(QEMU_BIN) -L $(QEMU_SYSROOT) $(QEMU_RUN_FLAGS) $(OUT_DIR)/$*; \
+	else \
+		$(QEMU_BIN) $(QEMU_RUN_FLAGS) $(OUT_DIR)/$*; \
+	fi
 	@echo "<<<<<"
 	@echo "[DONE] Test completed with exit code: $$?"
 
@@ -208,7 +231,12 @@ run: qemu $(TEST_BIN)
 	for test in $(TEST_BIN); do \
 		testname=$$(basename $$test); \
 		echo "[RUN] $$testname"; \
-		if $(QEMU_BIN) $(QEMU_RUN_FLAGS) $$test; then \
+		if [ "$$testname" = "test_zlib_nice" ] || [ "$$testname" = "test_zlib_evil" ]; then \
+			run_cmd="$(QEMU_BIN) -L $(QEMU_SYSROOT) $(QEMU_RUN_FLAGS) $$test"; \
+		else \
+			run_cmd="$(QEMU_BIN) $(QEMU_RUN_FLAGS) $$test"; \
+		fi; \
+		if sh -c "$$run_cmd"; then \
 			echo "[PASS] $$testname"; \
 			passed=$$((passed + 1)); \
 		else \
