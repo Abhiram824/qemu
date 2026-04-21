@@ -21,6 +21,7 @@
 /* HFI_ExitReason */
 #define HFI_EXIT_CALLED 1
 #define HFI_SYSCALL_REQUESTED 2
+#define HFI_FAULT_OCCURRED 3
 
 /* HFI_Permissions */
 #define HFI_PERM_READ 0x1
@@ -347,7 +348,7 @@ static inline void do_hfi_exit(void) {
         "" HFI_EXIT()  // Exit protected region
         :
         :
-        :);
+        : );
 }
 
 static inline uint64_t do_hfi_gfs(void) {

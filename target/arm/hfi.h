@@ -16,6 +16,7 @@
 /* HFI_ExitReason */
 #define HFI_EXIT_CALLED 1
 #define HFI_SYSCALL_REQUESTED 2
+#define HFI_FAULT_OCCURRED 3
 
 /* HFI_Permissions */
 #define HFI_PERM_READ 0x1

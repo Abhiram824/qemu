@@ -154,7 +154,7 @@ int is_true(int val) {
     return val == 1;
 }
 
-int test_zlib_success() {
+int test_zlib_evil() {
     // 1. Setup Data for compression
     const char* hello_msg = "Hello Hardware Fault Isolation! If you can read this, zlib sandboxing works while proxying syscalls.";
     source_len = strlen(hello_msg) + 1;
@@ -213,5 +213,5 @@ int test_zlib_success() {
 }
 
 TEST_MAIN(
-    TEST(test_zlib_success(), is_true);
+    TEST(test_zlib_evil(), is_true);
 )

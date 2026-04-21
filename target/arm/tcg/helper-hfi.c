@@ -294,6 +294,18 @@ void HELPER(hfi_enter)(CPUARMState* env, uint64_t jump_target, uint64_t options)
     cpu_loop_exit(cpu);
 }
 
+// helper for the helper to preaprea the cpu state for an hfi exit
+static inline void hfi_prepare_exit_state(CPUARMState* env, uint32_t exit_cause) {
+    /* Pack exit reason and PC into exit state bitvector */
+    env->hfi.exec_state.reg_exit_state = HFI_EXIT_STATE_SET_PC_AND_REASON(env->pc, exit_cause);
+
+    /* Disable HFI */
+    env->hfi.control_config.reg_enabled = 0;
+
+    /* Jump to exit handler address */
+    env->pc = env->hfi.control_config.reg_exit_handler_addr;
+}
+
 /**
  * Exit Protected Region
  * Requires: HFI currently enabled
@@ -313,18 +325,12 @@ void HELPER(hfi_exit)(CPUARMState* env, uint32_t exit_cause) {
         return;
     }
 
-    /* Pack exit reason and PC into exit state bitvector */
-    env->hfi.exec_state.reg_exit_state = HFI_EXIT_STATE_SET_PC_AND_REASON(env->pc, exit_cause);
-
-    /* Disable HFI */
-    env->hfi.control_config.reg_enabled = 0;
-
-    /* Jump to exit handler address */
-    env->pc = env->hfi.control_config.reg_exit_handler_addr;
+    hfi_prepare_exit_state(env, exit_cause);
 
     /* Exit to main loop so it restarts at the new PC */
     cpu_loop_exit(cpu);
 }
+
 
 void HELPER(hfi_addr_in_region)(CPUARMState* env, uint64_t addr_start, u_int32_t load, u_int32_t store, uint32_t size) {
     if (!env->hfi.control_config.reg_enabled) {
@@ -353,6 +359,7 @@ void HELPER(hfi_addr_in_region)(CPUARMState* env, uint64_t addr_start, u_int32_t
             HFI_FAULT_STATE_SET_REASON(fs, HFI_FAULT_PERMISSION);
             HFI_FAULT_STATE_SET_REGION_ID(fs, i);
             env->hfi.exec_state.reg_fault_state = fs;
+            hfi_prepare_exit_state(env, HFI_FAULT_OCCURRED);
             hfi_raise_exception(env);
             return;
         }
@@ -363,5 +370,6 @@ void HELPER(hfi_addr_in_region)(CPUARMState* env, uint64_t addr_start, u_int32_t
     HFI_FAULT_STATE_SET_OPERATION(fs, fault_op);
     HFI_FAULT_STATE_SET_REASON(fs, HFI_FAULT_OUT_OF_BOUNDS);
     env->hfi.exec_state.reg_fault_state = fs;
+    hfi_prepare_exit_state(env, HFI_FAULT_OCCURRED);
     hfi_raise_exception(env);
 }
