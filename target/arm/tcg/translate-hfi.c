@@ -98,6 +98,13 @@ void hfi_translate_init(void) {
     HFI_INIT_FIELD(control_config.reg_exit_handler_addr);
 }
 
+TCGv_i64 read_explicit_region_reg(DisasContext *s, u_int8_t reg_num)
+{
+    TCGv_i64 v = tcg_temp_new_i64();
+    tcg_gen_mov_i64(tcg_hfi.regions[reg_num + 4].reg_base, v);
+    return v;
+}
+
 // =============================================================================
 // =============================== HELPERS =====================================
 // =============================================================================
@@ -288,3 +295,68 @@ static bool trans_HFI_SR(DisasContext* ctx, arg_HFI_SR* a) {
     /* Temporary registers are freed automatically by TCG */
     return true;
 }
+
+static void op_addr_hldst_imm_pre(DisasContext *s, arg_hldst_imm *a,
+                                 TCGv_i64 *clean_addr, TCGv_i64 *dirty_addr,
+                                 uint64_t offset, bool is_store, MemOp mop)
+{
+    int memidx;
+    u_int8_t region_num = a->rn1 << 1 | a->rn2;
+
+
+    *dirty_addr = read_explicit_region_reg(s, region_num)
+    if (!a->p) {
+        tcg_gen_addi_i64(*dirty_addr, *dirty_addr, offset);
+    }
+    memidx = get_a64_user_mem_index(s, a->unpriv);
+    *clean_addr = gen_mte_check1_mmuidx(s, *dirty_addr, is_store,
+                                        a->w,
+                                        mop, a->unpriv, memidx);
+}
+
+static void op_addr_hldst_imm_post(DisasContext *s, arg_hldst_imm *a,
+                                  TCGv_i64 dirty_addr, uint64_t offset)
+{
+    if (a->w) {
+        if (a->p) {
+            tcg_gen_addi_i64(dirty_addr, dirty_addr, offset);
+        }
+    }
+}
+
+static bool trans_HSTR_i(DisasContext *s, arg_hldst_imm *a)
+{
+    bool iss_sf, iss_valid = !a->w;
+    TCGv_i64 clean_addr, dirty_addr, tcg_rt;
+    int memidx = get_a64_user_mem_index(s, a->unpriv);
+    MemOp mop = finalize_memop(s, a->sz);
+
+    op_addr_hldst_imm_pre(s, a, &clean_addr, &dirty_addr, a->imm, true, mop);
+
+    tcg_rt = cpu_reg(s, a->rt);
+    iss_sf = ldst_iss_sf(a->sz, 0, 0);
+
+    do_gpr_st_memidx(s, tcg_rt, clean_addr, mop, memidx,
+                     iss_valid, a->rt, iss_sf, false);
+    op_addr_hldst_imm_post(s, a, dirty_addr, a->imm);
+    return true;
+}
+
+static bool trans_HLDR_i(DisasContext *s, arg_hldst_imm *a)
+{
+    bool iss_sf, iss_valid = !a->w;
+    TCGv_i64 clean_addr, dirty_addr, tcg_rt;
+    int memidx = get_a64_user_mem_index(s, a->unpriv);
+    MemOp mop = finalize_memop(s, a->sz);
+
+    op_addr_hldst_imm_pre(s, a, &clean_addr, &dirty_addr, a->imm, false, mop);
+
+    tcg_rt = cpu_reg(s, a->rt);
+    iss_sf = ldst_iss_sf(a->sz, 0, 0);
+
+    do_gpr_ld_memidx(s, tcg_rt, clean_addr, mop,
+                     a->ext, memidx, iss_valid, a->rt, iss_sf, false);
+    op_addr_hldst_imm_post(s, a, dirty_addr, a->imm);
+    return true;
+}
+
