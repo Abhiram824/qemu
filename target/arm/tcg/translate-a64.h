@@ -202,6 +202,18 @@ bool disas_sve(DisasContext *, uint32_t);
 bool disas_sme(DisasContext *, uint32_t);
 bool disas_hfi(DisasContext *, uint32_t);
 
+int get_a64_user_mem_index(DisasContext *s, bool unpriv);
+TCGv_i64 gen_mte_check1_mmuidx(DisasContext *s, TCGv_i64 addr,
+                                bool is_write, bool tag_checked,
+                                MemOp memop, bool is_unpriv, int core_idx);
+void do_gpr_st_memidx(DisasContext *s, TCGv_i64 source, TCGv_i64 tcg_addr,
+                      MemOp memop, int memidx, bool iss_valid,
+                      unsigned int iss_srt, bool iss_sf, bool iss_ar);
+void do_gpr_ld_memidx(DisasContext *s, TCGv_i64 dest, TCGv_i64 tcg_addr,
+                      MemOp memop, bool extend, int memidx, bool iss_valid,
+                      unsigned int iss_srt, bool iss_sf, bool iss_ar);
+bool ldst_iss_sf(int size, bool sign, bool ext);
+
 void gen_gvec_rax1(unsigned vece, uint32_t rd_ofs, uint32_t rn_ofs,
                    uint32_t rm_ofs, uint32_t opr_sz, uint32_t max_sz);
 void gen_gvec_xar(unsigned vece, uint32_t rd_ofs, uint32_t rn_ofs,

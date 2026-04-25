@@ -116,7 +116,7 @@ void a64_translate_init(void)
  *           normal encoding (in which case we will return the same
  *           thing as get_mem_index().
  */
-static int get_a64_user_mem_index(DisasContext *s, bool unpriv)
+int get_a64_user_mem_index(DisasContext *s, bool unpriv)
 {
     /*
      * If AccType_UNPRIV is not used, the insn uses AccType_NORMAL,
@@ -282,7 +282,7 @@ static void gen_probe_access(DisasContext *s, TCGv_i64 ptr,
  * is not relevant to MTE, per se, but watchpoints do require the size,
  * and we want to recognize those before making any other changes to state.
  */
-static TCGv_i64 gen_mte_check1_mmuidx(DisasContext *s, TCGv_i64 addr,
+TCGv_i64 gen_mte_check1_mmuidx(DisasContext *s, TCGv_i64 addr,
                                       bool is_write, bool tag_checked,
                                       MemOp memop, bool is_unpriv,
                                       int core_idx)
@@ -1138,7 +1138,7 @@ static void gen_adc_CC(int sf, TCGv_i64 dest, TCGv_i64 t0, TCGv_i64 t1)
 /*
  * Store from GPR register to memory.
  */
-static void do_gpr_st_memidx(DisasContext *s, TCGv_i64 source,
+void do_gpr_st_memidx(DisasContext *s, TCGv_i64 source,
                              TCGv_i64 tcg_addr, MemOp memop, int memidx,
                              bool iss_valid,
                              unsigned int iss_srt,
@@ -1173,7 +1173,7 @@ static void do_gpr_st(DisasContext *s, TCGv_i64 source,
 /*
  * Load from memory to GPR register
  */
-static void do_gpr_ld_memidx(DisasContext *s, TCGv_i64 dest, TCGv_i64 tcg_addr,
+void do_gpr_ld_memidx(DisasContext *s, TCGv_i64 dest, TCGv_i64 tcg_addr,
                              MemOp memop, bool extend, int memidx,
                              bool iss_valid, unsigned int iss_srt,
                              bool iss_sf, bool iss_ar)
@@ -3193,7 +3193,7 @@ static void gen_compare_and_swap_pair(DisasContext *s, int rs, int rt,
  * is accessing a 32-bit or 64-bit register. This logic is derived
  * from the ARMv8 specs for LDR (Shared decode for all encodings).
  */
-static bool ldst_iss_sf(int size, bool sign, bool ext)
+bool ldst_iss_sf(int size, bool sign, bool ext)
 {
 
     if (sign) {

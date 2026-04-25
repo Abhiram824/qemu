@@ -65,11 +65,8 @@ HFI_SES         00000010 00001101 00000000 000 .....      @gpr
 
 # H-Prefixed instructions. Copy format of the non-H-prefixed instruction, use bits for rn1 encoding for region region_number
 # Load/store register (unscaled immediate)
-&hldst_imm       rt rn imm sz rn1 w p unpriv rn2
-@hldst_imm       .. ... . .. .. . imm:s9 .. rn:5 rt:5 &hldst_imm unpriv=0 p=0 w=0
-@hldst_imm_pre   .. ... . .. .. . imm:s9 .. rn:5 rt:5 &hldst_imm unpriv=0 p=0 w=1
-@hldst_imm_post  .. ... . .. .. . imm:s9 .. rn:5 rt:5 &hldst_imm unpriv=0 p=1 w=1
-@hldst_imm_user  .. ... . .. .. . imm:s9 .. rn:5 rt:5 &hldst_imm unpriv=1 p=0 w=0
+&hldst_imm       rt rn imm sz rn1 unpriv rn2
+@hldst_imm       .. ... . .. .. . imm:s9 .. rn:5 rt:5 &hldst_imm unpriv=0
 
 HSTR_i           sz:2 001 1 00 00 0 ......... 00 ..... ..... @hldst_imm rn1=0 rn2=0
 HLDR_i           00 001 1 00 01 0 ......... 00 ..... ..... @hldst_imm rn1=0 rn2=1 sz=0
@@ -81,36 +78,3 @@ HLDR_i           01 001 1 00 10 0 ......... 00 ..... ..... @hldst_imm rn1=1 rn2=
 HLDR_i           10 001 1 00 10 0 ......... 00 ..... ..... @hldst_imm rn1=1 rn2=0 sz=2
 HLDR_i           00 001 1 00 11 0 ......... 00 ..... ..... @hldst_imm rn1=1 rn2=1 sz=0
 HLDR_i           01 001 1 00 11 0 ......... 00 ..... ..... @hldst_imm rn1=1 rn2=1 sz=1
-
-HSTR_i           sz:2 001 1 00 00 0 ......... 01 ..... ..... @hldst_imm_post rn1=0 rn2=0
-HLDR_i           00 001 1 00 01 0 ......... 01 ..... ..... @hldst_imm_post rn1=0 rn2=1 sz=0
-HLDR_i           01 001 1 00 01 0 ......... 01 ..... ..... @hldst_imm_post rn1=0 rn2=1 sz=1
-HLDR_i           10 001 1 00 01 0 ......... 01 ..... ..... @hldst_imm_post rn1=0 rn2=1 sz=2
-HLDR_i           11 001 1 00 01 0 ......... 01 ..... ..... @hldst_imm_post rn1=0 rn2=0 sz=3
-HLDR_i           00 001 1 00 10 0 ......... 01 ..... ..... @hldst_imm_post rn1=1 rn2=0 sz=0
-HLDR_i           01 001 1 00 10 0 ......... 01 ..... ..... @hldst_imm_post rn1=1 rn2=0 sz=1
-HLDR_i           10 001 1 00 10 0 ......... 01 ..... ..... @hldst_imm_post rn1=1 rn2=0 sz=2
-HLDR_i           00 001 1 00 11 0 ......... 01 ..... ..... @hldst_imm_post rn1=1 rn2=1 sz=0
-HLDR_i           01 001 1 00 11 0 ......... 01 ..... ..... @hldst_imm_post rn1=1 rn2=1 sz=1
-
-HSTR_i           sz:2 001 1 00 00 0 ......... 10 ..... ..... @hldst_imm_user rn1=0 rn2=0
-HLDR_i           00 001 1 00 01 0 ......... 10 ..... ..... @hldst_imm_user rn1=0 rn2=1 sz=0
-HLDR_i           01 001 1 00 01 0 ......... 10 ..... ..... @hldst_imm_user rn1=0 rn2=1 sz=1
-HLDR_i           10 001 1 00 01 0 ......... 10 ..... ..... @hldst_imm_user rn1=0 rn2=1 sz=2
-HLDR_i           11 001 1 00 01 0 ......... 10 ..... ..... @hldst_imm_user rn1=0 rn2=0 sz=3
-HLDR_i           00 001 1 00 10 0 ......... 10 ..... ..... @hldst_imm_user rn1=1 rn2=0 sz=0
-HLDR_i           01 001 1 00 10 0 ......... 10 ..... ..... @hldst_imm_user rn1=1 rn2=0 sz=1
-HLDR_i           10 001 1 00 10 0 ......... 10 ..... ..... @hldst_imm_user rn1=1 rn2=0 sz=2
-HLDR_i           00 001 1 00 11 0 ......... 10 ..... ..... @hldst_imm_user rn1=1 rn2=1 sz=0
-HLDR_i           01 001 1 00 11 0 ......... 10 ..... ..... @hldst_imm_user rn1=1 rn2=1 sz=1
-
-HSTR_i           sz:2 001 1 00 00 0 ......... 11 ..... ..... @hldst_imm_pre rn1=0 rn2=0
-HLDR_i           00 001 1 00 01 0 ......... 11 ..... ..... @hldst_imm_pre rn1=0 rn2=1 sz=0
-HLDR_i           01 001 1 00 01 0 ......... 11 ..... ..... @hldst_imm_pre rn1=0 rn2=1 sz=1
-HLDR_i           10 001 1 00 01 0 ......... 11 ..... ..... @hldst_imm_pre rn1=0 rn2=1 sz=2
-HLDR_i           11 001 1 00 01 0 ......... 11 ..... ..... @hldst_imm_pre rn1=0 rn2=0 sz=3
-HLDR_i           00 001 1 00 10 0 ......... 11 ..... ..... @hldst_imm_pre rn1=1 rn2=0 sz=0
-HLDR_i           01 001 1 00 10 0 ......... 11 ..... ..... @hldst_imm_pre rn1=1 rn2=0 sz=1
-HLDR_i           10 001 1 00 10 0 ......... 11 ..... ..... @hldst_imm_pre rn1=1 rn2=0 sz=2
-HLDR_i           00 001 1 00 11 0 ......... 11 ..... ..... @hldst_imm_pre rn1=1 rn2=1 sz=0
-HLDR_i           01 001 1 00 11 0 ......... 11 ..... ..... @hldst_imm_pre rn1=1 rn2=1 sz=1
