@@ -25,6 +25,8 @@
 #include "arm_ldst.h"
 #include "semihosting/semihost.h"
 #include "cpregs.h"
+#include "translate-hfi.h"
+#include "../hfi.h"
 
 static TCGv_i64 cpu_X[32];
 static TCGv_i64 cpu_pc;
@@ -91,6 +93,16 @@ void a64_translate_init(void)
 
     cpu_exclusive_high = tcg_global_mem_new_i64(tcg_env,
         offsetof(CPUARMState, exclusive_high), "exclusive_high");
+
+    // ======================================
+    // =============== HFI ==================
+    // ======================================
+
+    hfi_translate_init();
+    
+    // ======================================
+    // ======================================
+    // ======================================
 }
 
 /*
@@ -104,7 +116,7 @@ void a64_translate_init(void)
  *           normal encoding (in which case we will return the same
  *           thing as get_mem_index().
  */
-static int get_a64_user_mem_index(DisasContext *s, bool unpriv)
+int get_a64_user_mem_index(DisasContext *s, bool unpriv)
 {
     /*
      * If AccType_UNPRIV is not used, the insn uses AccType_NORMAL,
@@ -270,11 +282,16 @@ static void gen_probe_access(DisasContext *s, TCGv_i64 ptr,
  * is not relevant to MTE, per se, but watchpoints do require the size,
  * and we want to recognize those before making any other changes to state.
  */
-static TCGv_i64 gen_mte_check1_mmuidx(DisasContext *s, TCGv_i64 addr,
+TCGv_i64 gen_mte_check1_mmuidx(DisasContext *s, TCGv_i64 addr,
                                       bool is_write, bool tag_checked,
                                       MemOp memop, bool is_unpriv,
                                       int core_idx)
 {
+    gen_helper_hfi_addr_in_region(tcg_env, addr,
+                                   tcg_constant_i32(!is_write),
+                                   tcg_constant_i32(is_write),
+                                   tcg_constant_i32(memop_size(memop)));
+
     if (tag_checked && s->mte_active[is_unpriv]) {
         TCGv_i64 ret;
         int desc = 0;
@@ -307,6 +324,11 @@ TCGv_i64 gen_mte_check1(DisasContext *s, TCGv_i64 addr, bool is_write,
 TCGv_i64 gen_mte_checkN(DisasContext *s, TCGv_i64 addr, bool is_write,
                         bool tag_checked, int total_size, MemOp single_mop)
 {
+    gen_helper_hfi_addr_in_region(tcg_env, addr,
+                                   tcg_constant_i32(!is_write),
+                                   tcg_constant_i32(is_write),
+                                   tcg_constant_i32(total_size));
+
     if (tag_checked && s->mte_active[0]) {
         TCGv_i64 ret;
         int desc = 0;
@@ -1116,7 +1138,7 @@ static void gen_adc_CC(int sf, TCGv_i64 dest, TCGv_i64 t0, TCGv_i64 t1)
 /*
  * Store from GPR register to memory.
  */
-static void do_gpr_st_memidx(DisasContext *s, TCGv_i64 source,
+void do_gpr_st_memidx(DisasContext *s, TCGv_i64 source,
                              TCGv_i64 tcg_addr, MemOp memop, int memidx,
                              bool iss_valid,
                              unsigned int iss_srt,
@@ -1151,7 +1173,7 @@ static void do_gpr_st(DisasContext *s, TCGv_i64 source,
 /*
  * Load from memory to GPR register
  */
-static void do_gpr_ld_memidx(DisasContext *s, TCGv_i64 dest, TCGv_i64 tcg_addr,
+void do_gpr_ld_memidx(DisasContext *s, TCGv_i64 dest, TCGv_i64 tcg_addr,
                              MemOp memop, bool extend, int memidx,
                              bool iss_valid, unsigned int iss_srt,
                              bool iss_sf, bool iss_ar)
@@ -2804,19 +2826,57 @@ static bool trans_SYS(DisasContext *s, arg_SYS *a)
 
 static bool trans_SVC(DisasContext *s, arg_i *a)
 {
+
+    // ========================= ACTUAL TRANSLATION =========================
+
     /*
-     * For SVC, HVC and SMC we advance the single-step state
-     * machine before taking the exception. This is architecturally
-     * mandated, to ensure that single-stepping a system call
-     * instruction works properly.
-     */
+    * For SVC, HVC and SMC we advance the single-step state
+    * machine before taking the exception. This is architecturally
+    * mandated, to ensure that single-stepping a system call
+    * instruction works properly.
+    */
+    // we need to consume the exception
     uint32_t syndrome = syn_aa64_svc(a->imm);
+
+    if (!s->fgt_svc) {
+        gen_ss_advance(s);
+    }
+
+    // ======================= INTERCEPT ========================
+    /*
+     * HFI syscall interception:
+     * If HFI is enabled, exit the protected region with SYSCALL_REQUESTED.
+     * Otherwise, handle the syscall normally.
+     */
+    
+    /* Load HFI enabled flag from CPUARMState.hfi.control_config.reg_enabled */
+    TCGv_i32 hfi_enabled = tcg_temp_new_i32();
+    tcg_gen_ld_i32(hfi_enabled, tcg_env, offsetof(CPUARMState, hfi.control_config.reg_enabled));
+    
+    TCGLabel* label_normal_svc = gen_new_label();
+    
+    /* If HFI is NOT enabled (== 0), branch to normal SVC handling */
+    tcg_gen_brcondi_i32(TCG_COND_EQ, hfi_enabled, 0, label_normal_svc);
+    
+    /* HFI is enabled (!= 0) - exit to handler with SYSCALL_REQUESTED reason */
+    gen_helper_hfi_exit(tcg_env, tcg_constant_i32(HFI_SYSCALL_REQUESTED));
+        
+    gen_set_label(label_normal_svc);
+
+    // ======================= INTERCEPT ========================
+    
+    // =================== NORMAL SVC =====================
+
     if (s->fgt_svc) {
         gen_exception_insn_el(s, 0, EXCP_UDEF, syndrome, 2);
-        return true;
+    } else {
+        gen_exception_insn(s, 4, EXCP_SWI, syndrome);
     }
-    gen_ss_advance(s);
-    gen_exception_insn(s, 4, EXCP_SWI, syndrome);
+
+    // =================== NORMAL SVC =====================
+
+    s->base.is_jmp = DISAS_NORETURN;
+
     return true;
 }
 
@@ -3133,7 +3193,7 @@ static void gen_compare_and_swap_pair(DisasContext *s, int rs, int rt,
  * is accessing a 32-bit or 64-bit register. This logic is derived
  * from the ARMv8 specs for LDR (Shared decode for all encodings).
  */
-static bool ldst_iss_sf(int size, bool sign, bool ext)
+bool ldst_iss_sf(int size, bool sign, bool ext)
 {
 
     if (sign) {
@@ -3573,6 +3633,12 @@ static bool trans_STR_i(DisasContext *s, arg_ldst_imm *a)
 
 static bool trans_LDR_i(DisasContext *s, arg_ldst_imm *a)
 {
+    // TCGv_i64 addr = tcg_temp_new_i64();
+    // tcg_gen_addi_i64(addr, cpu_reg_sp(s, a->rn), a->imm);
+    // gen_helper_hfi_addr_in_region(tcg_env, addr,
+    //                                tcg_constant_i32(1),
+    //                                tcg_constant_i32(0),
+    //                                tcg_constant_i32(1 << a->sz));
     bool iss_sf, iss_valid = !a->w;
     TCGv_i64 clean_addr, dirty_addr, tcg_rt;
     int memidx = get_a64_user_mem_index(s, a->unpriv);
@@ -10063,6 +10129,7 @@ static bool trans_FAIL(DisasContext *s, arg_OK *a)
     return true;
 }
 
+
 /**
  * btype_destination_ok:
  * @insn: The instruction at the branch destination
@@ -10318,7 +10385,8 @@ static void aarch64_tr_translate_insn(DisasContextBase *dcbase, CPUState *cpu)
 
     if (!disas_a64(s, insn) &&
         !disas_sme(s, insn) &&
-        !disas_sve(s, insn)) {
+        !disas_sve(s, insn) &&
+        !disas_hfi(s, insn)) {
         unallocated_encoding(s);
     }
 

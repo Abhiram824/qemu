@@ -1,0 +1,431 @@
+#ifndef HFI_TEST_HELPER_H
+#define HFI_TEST_HELPER_H
+
+#include <stdint.h>
+
+// ===============================================================================
+// ================================= HFI CONSTS ==================================
+// ===============================================================================
+
+#define HFI_OPT_LOCK_REGIONS 0x1
+
+/* HFI_FaultReason */
+#define HFI_FAULT_OUT_OF_BOUNDS 1
+#define HFI_FAULT_PERMISSION 2
+
+/* HFI_FaultOperation */
+#define HFI_FAULT_OPERATION_LOAD 1
+#define HFI_FAULT_OPERATION_STORE 2
+#define HFI_FAULT_OPERATION_FETCH 3
+
+/* HFI_ExitReason */
+#define HFI_EXIT_CALLED 1
+#define HFI_SYSCALL_REQUESTED 2
+#define HFI_FAULT_OCCURRED 3
+
+/* HFI_Permissions */
+#define HFI_PERM_READ 0x1
+#define HFI_PERM_WRITE 0x2
+#define HFI_PERM_EXEC 0x4
+#define HFI_PERM_ALL_MASK (HFI_PERM_READ | HFI_PERM_WRITE | HFI_PERM_EXEC)
+
+/* HFI_Flags */
+#define HFI_REGION_IS_LARGE 0x8
+
+// =======================================================================
+// =======================================================================
+// MACROS for custom instructions
+// =======================================================================
+// =======================================================================
+
+// =======================================================================
+// helpers
+// =======================================================================
+
+#include "stdio.h"
+
+#define _TO_STR(x) #x
+
+#define _TO_ASM_INSTR_STR(x) \
+    "/* \t" #x               \
+    " \t*/\t\t\t"            \
+    ".inst" _TO_STR(x) "\n"
+
+// =======================================================================
+// value generator macros
+// =======================================================================
+
+#define CSTM_VAL(rn, rd) \
+    (0xE7FFFC00 | ((rn & 0x1F) << 5) | (rd & 0x1F))
+
+#define HFI_SET_REGION_VAL(region_number, region_ptr_gpr) \
+    (0xE7C00000 | ((region_number & 0x7) << 5) | (region_ptr_gpr & 0x1F))
+
+// =======================================================================
+// Fault State Bitvector Accessors (reg_fault_state)
+// ========================================================================
+// Bit layout:
+// [0]      : fault_occurred (1 bit)
+// [2:1]    : fault_operation (2 bits)
+// [4:3]    : fault_reason (2 bits)
+// [9:5]    : region_id (5 bits)
+// [63:10]  : reserved (54 bits)
+// ========================================================================
+
+#define HFI_FAULT_STATE_GET_OCCURRED(state)     (((state) >> 0) & 0x1ULL)
+#define HFI_FAULT_STATE_SET_OCCURRED(state, val) \
+    ((state) = (((state) & ~(0x1ULL << 0)) | (((uint64_t)(val) & 0x1ULL) << 0)))
+
+#define HFI_FAULT_STATE_GET_OPERATION(state)    (((state) >> 1) & 0x3ULL)
+#define HFI_FAULT_STATE_SET_OPERATION(state, val) \
+    ((state) = (((state) & ~(0x3ULL << 1)) | (((uint64_t)(val) & 0x3ULL) << 1)))
+
+#define HFI_FAULT_STATE_GET_REASON(state)       (((state) >> 3) & 0x3ULL)
+#define HFI_FAULT_STATE_SET_REASON(state, val) \
+    ((state) = (((state) & ~(0x3ULL << 3)) | (((uint64_t)(val) & 0x3ULL) << 3)))
+
+#define HFI_FAULT_STATE_GET_REGION_ID(state)    (((state) >> 5) & 0x1FULL)
+#define HFI_FAULT_STATE_SET_REGION_ID(state, val) \
+    ((state) = (((state) & ~(0x1FULL << 5)) | (((uint64_t)(val) & 0x1FULL) << 5)))
+
+// =======================================================================
+// Exit State Bitvector Accessors (reg_exit_state)
+// ========================================================================
+// Bit layout:
+// [1:0]    : exit_reason (2 bits)
+// [63:2]   : exit_pc_offset (62 bits) - stores (PC >> 2)
+// ========================================================================
+
+#define HFI_EXIT_STATE_GET_REASON(state)        (((state) >> 0) & 0x3ULL)
+#define HFI_EXIT_STATE_SET_REASON(state, val) \
+    ((state) = (((state) & ~(0x3ULL << 0)) | (((uint64_t)(val) & 0x3ULL) << 0)))
+
+#define HFI_EXIT_STATE_GET_PC(state)            (((state) >> 2) << 2)  /* Reconstruct PC from offset */
+#define HFI_EXIT_STATE_SET_PC_AND_REASON(pc, reason) \
+    ((((uint64_t)(pc) >> 2) << 2) | (((uint64_t)(reason) & 0x3ULL)))
+
+// =======================================================================
+// actual instruction macros
+// =======================================================================
+
+#define CSTM(rn, rd) \
+    _TO_ASM_INSTR_STR(CSTM_VAL(rn, rd))
+
+#define HFI_SET_REGION(region_number, region_ptr_gpr) \
+    _TO_ASM_INSTR_STR(HFI_SET_REGION_VAL(region_number, region_ptr_gpr))
+
+/* HFI instruction value generators (from decoder spec) */
+/* Convention: Destination register/region is always first */
+/* For SET ops: region_id (destination) is param 1, gpr_src (source) is param 2 */
+/* For GET ops: gpr_dst (destination) is param 1, region_id (source) is param 2 */
+/* All HFI instructions start with 0x02xxxxxx base opcode */
+
+/* HFI_SRB <region_gpr> <value_gpr>: Set Region Base - write from value_gpr to region_gpr */
+#define HFI_SRB_VAL(region_gpr, value_gpr) \
+    (0x02000000 | ((region_gpr & 0x1F) << 5) | (value_gpr & 0x1F))
+
+/* HFI_GRB <value_gpr> <region_gpr>: Get Region Base - read region_gpr into value_gpr */
+#define HFI_GRB_VAL(value_gpr, region_gpr) \
+    (0x02010000 | ((region_gpr & 0x1F) << 5) | (value_gpr & 0x1F))
+
+/* HFI_SRM <region_gpr> <value_gpr>: Set Region Mask - write from value_gpr to region_gpr */
+#define HFI_SRM_VAL(region_gpr, value_gpr) \
+    (0x02020000 | ((region_gpr & 0x1F) << 5) | (value_gpr & 0x1F))
+
+/* HFI_GRM <value_gpr> <region_gpr>: Get Region Mask - read region_gpr into value_gpr */
+#define HFI_GRM_VAL(value_gpr, region_gpr) \
+    (0x02030000 | ((region_gpr & 0x1F) << 5) | (value_gpr & 0x1F))
+
+/* HFI_SRP <region_gpr> <value_gpr>: Set Region Permissions - write from value_gpr to region_gpr */
+#define HFI_SRP_VAL(region_gpr, value_gpr) \
+    (0x02040000 | ((region_gpr & 0x1F) << 5) | (value_gpr & 0x1F))
+
+/* HFI_GRP <value_gpr> <region_gpr>: Get Region Permissions - read region_gpr into value_gpr */
+#define HFI_GRP_VAL(value_gpr, region_gpr) \
+    (0x02050000 | ((region_gpr & 0x1F) << 5) | (value_gpr & 0x1F))
+
+#define HFI_SEH_VAL(gpr) \
+    (0x02060000 | (gpr & 0x1F))
+
+#define HFI_GEH_VAL(gpr) \
+    (0x02070000 | (gpr & 0x1F))
+
+#define HFI_ENTER_VAL(optr, gpr) \
+    (0x02080000 | ((optr & 0x1F) << 5) | (gpr & 0x1F))
+
+#define HFI_EXIT_VAL() \
+    (0x02090000)
+
+// load instructions with immediate offsets (for testing region access)
+
+// LDRB <rt>, [<rn>, #<imm>] - unsigned byte load with immediate offset
+#define LDRBU_I_INSTR_VAL(rt, rn, imm) \
+    (0x38400000 | ((rt & 0x1F) << 0) | ((rn & 0x1F) << 5) | ((imm & 0x1FF) << 12))
+
+// HLDRB <rt>, [<rn>, #<imm>] - unsigned byte load with immediate offset. rn is unused!
+#define HLDRBU_I_INSTR_VAL(rt, rn, imm) \
+    (0x00400000 | ((rt & 0x1F) << 0) | ((rn & 0x1F) << 5) | ((imm & 0x1FF) << 12))
+
+// STRB <rt>, [<rn>, #<imm>] - unsigned byte store with immediate offset
+#define STRBU_I_INSTR_VAL(rt, rn, imm) \
+    (0x38000000 | ((rt & 0x1F) << 0) | ((rn & 0x1F) << 5) | ((imm & 0x1FF) << 12))
+
+// HSTRB <rt>, [<rn>, #<imm>] - unsigned byte store with immediate offset, rn is unused!
+#define HSTRBU_I_INSTR_VAL(rt, rn, imm) \
+    (0x00000000 | ((rt & 0x1F) << 0) | ((rn & 0x1F) << 5) | ((imm & 0x1FF) << 12))
+
+#define LDRL_V_INSTR_VAL(rt, rn, imm) \
+    (0x3CC00000 | ((rt & 0x1F) << 0) | ((rn & 0x1F) << 5) | ((imm & 0x1FF) << 12))
+
+#define STRL_V_INSTR_VAL(rt, rn, imm) \
+    (0x3C800000 | ((rt & 0x1F) << 0) | ((rn & 0x1F) << 5) | ((imm & 0x1FF) << 12))
+
+// unsigned , 32 bit valid, no extension, no shift
+#define LDRBU_INSTR_VAL(rt, rn, rm) \
+    (0x38604800 | ((rn & 0x1F) << 5) | (rt & 0x1F)| ((rm & 0x1F) << 16))
+
+#define STRBU_INSTR_VAL(rt, rn, rm) \
+    (0x38204800 | ((rn & 0x1F) << 5) | (rt & 0x1F) | ((rm & 0x1F) << 16) )
+
+#define LDAPRBU_I_INSTR_VAL(rt, rn, imm) \
+    (0x19400000 | ((rn & 0x1F) << 5) | (rt & 0x1F) | ((imm & 0x1FF) << 12) )
+    
+/* HFI_GFS <gpr>: Get Fault State - read fault state into gpr */
+#define HFI_GFS_VAL(gpr) \
+    (0x020A0000 | (gpr & 0x1F))
+
+/* HFI_SFS <gpr>: Set Fault State - write from gpr to fault state */
+#define HFI_SFS_VAL(gpr) \
+    (0x020B0000 | (gpr & 0x1F))
+
+/* HFI_GES <gpr>: Get Exit State - read exit state into gpr */
+#define HFI_GES_VAL(gpr) \
+    (0x020C0000 | (gpr & 0x1F))
+
+/* HFI_SES <gpr>: Set Exit State - write from gpr to exit state */
+#define HFI_SES_VAL(gpr) \
+    (0x020D0000 | (gpr & 0x1F))
+
+/* HFI instruction macros */
+#define HFI_SRB(region_gpr, value_gpr) \
+    _TO_ASM_INSTR_STR(HFI_SRB_VAL(region_gpr, value_gpr))
+
+#define HFI_GRB(value_gpr, region_gpr) \
+    _TO_ASM_INSTR_STR(HFI_GRB_VAL(value_gpr, region_gpr))
+
+#define HFI_SRM(region_gpr, value_gpr) \
+    _TO_ASM_INSTR_STR(HFI_SRM_VAL(region_gpr, value_gpr))
+
+#define HFI_GRM(value_gpr, region_gpr) \
+    _TO_ASM_INSTR_STR(HFI_GRM_VAL(value_gpr, region_gpr))
+
+#define HFI_SRP(region_gpr, value_gpr) \
+    _TO_ASM_INSTR_STR(HFI_SRP_VAL(region_gpr, value_gpr))
+
+#define HFI_GRP(value_gpr, region_gpr) \
+    _TO_ASM_INSTR_STR(HFI_GRP_VAL(value_gpr, region_gpr))
+
+#define HFI_SEH(gpr) \
+    _TO_ASM_INSTR_STR(HFI_SEH_VAL(gpr))
+
+#define HFI_GEH(gpr) \
+    _TO_ASM_INSTR_STR(HFI_GEH_VAL(gpr))
+
+#define HFI_ENTER(optr, gpr) \
+    _TO_ASM_INSTR_STR(HFI_ENTER_VAL(optr, gpr))
+
+#define HFI_EXIT() \
+    _TO_ASM_INSTR_STR(HFI_EXIT_VAL())
+
+#define HFI_GFS(gpr) \
+    _TO_ASM_INSTR_STR(HFI_GFS_VAL(gpr))
+
+#define HFI_SFS(gpr) \
+    _TO_ASM_INSTR_STR(HFI_SFS_VAL(gpr))
+
+#define HFI_GES(gpr) \
+    _TO_ASM_INSTR_STR(HFI_GES_VAL(gpr))
+
+#define HFI_SES(gpr) \
+    _TO_ASM_INSTR_STR(HFI_SES_VAL(gpr))
+
+// =======================================================================
+// helper functions (inlined)
+// =======================================================================
+
+static inline void do_hfi_srb(uint32_t region_id, uint64_t value) {
+    asm volatile(
+        "mov x0, %0\n"
+        "mov x1, %1\n"
+        "" HFI_SRB(0, 1)  // Set region base: region_id in x0, value in x1
+        :
+        : "r"(region_id), "r"(value)
+        : "x0", "x1");
+}
+
+static inline uint64_t do_hfi_grb(uint32_t region_id) {
+    uint64_t result;
+    asm volatile(
+        "mov x0, %0\n"
+        "" HFI_GRB(1, 0)  // Get region base: region_id in x0, result into x1
+        "mov %0, x1\n"
+        : "=r"(result)
+        : "r"(region_id)
+        : "x0", "x1");
+    return result;
+}
+
+static inline void do_hfi_srm(uint32_t region_id, uint64_t value) {
+    asm volatile(
+        "mov x0, %0\n"
+        "mov x1, %1\n"
+        "" HFI_SRM(0, 1)  // Set region mask: region_id in x0, value in x1
+        :
+        : "r"(region_id), "r"(value)
+        : "x0", "x1");
+}
+
+static inline uint64_t do_hfi_grm(uint32_t region_id) {
+    uint64_t result;
+    asm volatile(
+        "mov x0, %0\n"
+        "" HFI_GRM(1, 0)  // Get region mask: region_id in x0, result into x1
+        "mov %0, x1\n"
+        : "=r"(result)
+        : "r"(region_id)
+        : "x0", "x1");
+    return result;
+}
+
+static inline void do_hfi_srp(uint32_t region_id, uint64_t value) {
+    asm volatile(
+        "mov x0, %0\n"
+        "mov x1, %1\n"
+        "" HFI_SRP(0, 1)  // Set region permissions: region_id in x0, value in x1
+        :
+        : "r"(region_id), "r"(value)
+        : "x0", "x1");
+}
+
+static inline uint64_t do_hfi_grp(uint32_t region_id) {
+    uint64_t result;
+    asm volatile(
+        "mov x0, %0\n"
+        "" HFI_GRP(1, 0)  // Get region permissions: region_id in x0, result into x1
+        "mov %0, x1\n"
+        : "=r"(result)
+        : "r"(region_id)
+        : "x0", "x1");
+    return result;
+}
+
+static inline void do_hfi_seh(uint64_t value) {
+    asm volatile(
+        "mov x0, %0\n"
+        "" HFI_SEH(0)  // Set exit handler from x0
+        :
+        : "r"(value)
+        : "x0");
+}
+
+static inline uint64_t do_hfi_geh(void) {
+    uint64_t result;
+    asm volatile(
+        "mov x0, 0\n"
+        "" HFI_GEH(0)  // Get exit handler into x0
+        "mov %0, x0\n"
+        : "=r"(result)
+        :
+        : "x0");
+    return result;
+}
+
+static inline void __attribute__((noreturn)) do_hfi_enter(uint64_t jump_target, uint64_t options) {
+    asm volatile(
+        "mov x0, %0\n"
+        "mov x1, %1\n"
+        "" HFI_ENTER(1, 0)  // Enter with options in x1, target in x0
+        :
+        : "r"(jump_target), "r"(options)
+        : "x0", "x1");
+    __builtin_unreachable();
+}
+
+static inline void do_hfi_exit(void) {
+    asm volatile(
+        "" HFI_EXIT()  // Exit protected region
+        :
+        :
+        : );
+}
+
+static inline uint64_t do_hfi_gfs(void) {
+    uint64_t result;
+    asm volatile(
+        "mov x0, 0\n"
+        "" HFI_GFS(0)  // Get fault state into x0
+        "mov %0, x0\n"
+        : "=r"(result)
+        :
+        : "x0");
+    return result;
+}
+
+static inline void do_hfi_sfs(uint64_t value) {
+    asm volatile(
+        "mov x0, %0\n"
+        "" HFI_SFS(0)  // Set fault state from x0
+        :
+        : "r"(value)
+        : "x0");
+}
+
+static inline uint64_t do_hfi_ges(void) {
+    uint64_t result;
+    asm volatile(
+        "mov x0, 0\n"
+        "" HFI_GES(0)  // Get exit state into x0
+        "mov %0, x0\n"
+        : "=r"(result)
+        :
+        : "x0");
+    return result;
+}
+
+static inline void do_hfi_ses(uint64_t value) {
+    asm volatile(
+        "mov x0, %0\n"
+        "" HFI_SES(0)  // Set exit state from x0
+        :
+        : "r"(value)
+        : "x0");
+}
+
+// =======================================================================
+// testing orchestration macros
+// =======================================================================
+
+#define SETUP_TEST_SUITE() int passed = 0, failed = 0
+
+#define TEST(test_call, expected_check)              \
+    do {                                             \
+        printf("Running test: %s\n", #test_call);    \
+        if (expected_check(test_call)) {             \
+            printf("Test passed: %s\n", #test_call); \
+            passed++;                                \
+        } else {                                     \
+            printf("Test failed: %s\n", #test_call); \
+            failed++;                                \
+        }                                            \
+    } while (0)
+
+#define END_TEST_SUITE() return failed
+
+#define TEST_MAIN(tests)                     \
+    int main(int argc, char const* argv[]) { \
+        SETUP_TEST_SUITE();                  \
+        tests                                \
+        END_TEST_SUITE();                    \
+    }
+
+#endif // HFI_TEST_HELPER_H

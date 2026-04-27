@@ -30,6 +30,7 @@
 #include "qapi/qapi-types-common.h"
 #include "target/arm/multiprocessing.h"
 #include "target/arm/gtimer.h"
+#include "hfi.h"
 
 #ifdef TARGET_AARCH64
 #define KVM_HAVE_MCE_INJECTION 1
@@ -63,6 +64,9 @@
 #define EXCP_VINMI          27
 #define EXCP_VFNMI          28
 #define EXCP_MON_TRAP       29   /* AArch32 trap to Monitor mode */
+
+#define EXCP_HFI            100  /* Hardware Fault Isolation exception */
+
 /* NB: add new EXCP_ defines to the array in arm_log_exception() too */
 
 #define ARMV7M_EXCP_RESET   1
@@ -318,6 +322,16 @@ typedef struct CPUArchState {
 
     uint64_t elr_el[4]; /* AArch64 exception link regs  */
     uint64_t sp_el[4]; /* AArch64 banked stack pointers */
+
+    // ===============================================================
+    // ===================== CUSTOM HFI ==============================
+    // ===============================================================
+
+    CPUArchState_HFI hfi;
+    
+    // ===============================================================
+    // ===============================================================
+    // ===============================================================
 
     /* System control coprocessor (cp15) */
     struct {

@@ -1,5 +1,6 @@
 gen_a64 = [
   decodetree.process('a64.decode', extra_args: ['--static-decode=disas_a64']),
+  decodetree.process('hfi.decode', extra_args: '--decode=disas_hfi'),
   decodetree.process('sve.decode', extra_args: '--decode=disas_sve'),
   decodetree.process('sme.decode', extra_args: '--decode=disas_sme'),
   decodetree.process('sme-fa64.decode', extra_args: '--static-decode=disas_sme_fa64'),
@@ -48,9 +49,11 @@ arm_ss.add(when: 'TARGET_AARCH64', if_true: files(
   'cpu64.c',
   'gengvec64.c',
   'translate-a64.c',
+  'translate-hfi.c',
   'translate-sve.c',
   'translate-sme.c',
   'helper-a64.c',
+  'helper-hfi.c',
   'mte_helper.c',
   'pauth_helper.c',
   'sme_helper.c',

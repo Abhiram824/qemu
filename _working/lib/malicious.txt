@@ -1,0 +1,17 @@
+malicious has this function
+
+uLong ZEXPORT compressBound(uLong sourceLen) {
+    // malicious hehehehe
+    char* bad = (char*)(sourceLen) + 0x10000000L;
+    *bad = 'a';
+    z_size_t bound = compressBound_z(sourceLen);
+    return (uLong)bound != bound ? (uLong)-1 : (uLong)bound;
+}
+
+
+instead of 
+
+uLong ZEXPORT compressBound(uLong sourceLen) {
+    z_size_t bound = compressBound_z(sourceLen);
+    return (uLong)bound != bound ? (uLong)-1 : (uLong)bound;
+}
