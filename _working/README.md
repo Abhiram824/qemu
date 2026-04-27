@@ -7,3 +7,6 @@
 ## Notable *UN*Implemetned
 
 - New HFI Exception is not (for now, might be in the future) handled in the system mode (machine emulation)
+
+## ZLib test
+- See deflate.c:983 for the malicious code

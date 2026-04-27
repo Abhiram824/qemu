@@ -24,6 +24,10 @@ QEMU_BUILD = ../build
 QEMU_BIN = $(QEMU_BUILD)/qemu-aarch64
 QEMU_SYSROOT = /usr/aarch64-linux-gnu
 
+# Zlib source directories (local copies)
+NICE_ZLIB_DIR    = _nice_zlib
+MALICIOUS_ZLIB_DIR = _malicious_zlib
+
 # Get all test sources and derive names
 TEST_SOURCES = $(wildcard $(TEST_DIR)/*.c)
 TEST_NAMES = $(basename $(notdir $(TEST_SOURCES)))
@@ -37,10 +41,10 @@ TEST_DUMPS = $(addprefix $(OUT_DIR)/,$(addsuffix .dump,$(TEST_NAMES)))
 HFI_FILES = $(shell find .. -type f -name "*hfi*" | grep -vE "(/build/|/\.[^/]+/|/_)")
 
 # Declare all targets as phony
-.PHONY: all configure qemu qemu-rebuild asm bin build run run-% clean help status git-push debug-% objdump
+.PHONY: all configure qemu qemu-rebuild asm bin build run run-% clean clean-reset help status git-push debug-% objdump libs
 
 # Default target
-all: qemu asm bin
+all: qemu libs asm bin
 	@echo "[BUILD] All tests compiled successfully"
 
 # ============================================================================
@@ -134,6 +138,28 @@ $(OUT_DIR):
 HEADERS = $(wildcard *.h) $(wildcard $(TEST_DIR)/*.h)
 
 # ============================================================================
+# Zlib Library Builds (from local source copies)
+# ============================================================================
+
+# Build nice zlib and place static lib in lib/
+$(LIB_DIR)/libz.a: $(wildcard $(NICE_ZLIB_DIR)/*.c $(NICE_ZLIB_DIR)/*.h)
+	@echo "[LIBS] Building nice zlib from $(NICE_ZLIB_DIR)..."
+	@$(MAKE) -C $(NICE_ZLIB_DIR) libz.a
+	@cp $(NICE_ZLIB_DIR)/libz.a $@
+	@echo "[LIBS] ✓ $(LIB_DIR)/libz.a ready"
+
+# Build malicious zlib and place static lib in lib/
+$(LIB_DIR)/libz_malicious.a: $(wildcard $(MALICIOUS_ZLIB_DIR)/*.c $(MALICIOUS_ZLIB_DIR)/*.h)
+	@echo "[LIBS] Building malicious zlib from $(MALICIOUS_ZLIB_DIR)..."
+	@$(MAKE) -C $(MALICIOUS_ZLIB_DIR) libz.a
+	@cp $(MALICIOUS_ZLIB_DIR)/libz.a $@
+	@echo "[LIBS] ✓ $(LIB_DIR)/libz_malicious.a ready"
+
+# Convenience target to build both static libs
+libs: $(LIB_DIR)/libz.a $(LIB_DIR)/libz_malicious.a
+	@echo "[LIBS] ✓ All zlib variants built"
+
+# ============================================================================
 # Test-Specific Library Configurations
 # ============================================================================
 
@@ -222,7 +248,11 @@ run-%: qemu $(OUT_DIR)/%
 # Debug a specific test: make debug-testname
 debug-%: qemu $(OUT_DIR)/%
 	@echo "[DEBUG] Running: $* with gdb"
-	@gdb --args $(QEMU_BIN) $(QEMU_RUN_FLAGS) $(OUT_DIR)/$*
+	@if [ "$*" = "test_zlib_nice" ] || [ "$*" = "test_zlib_evil" ]; then \
+		gdb --args $(QEMU_BIN) -L $(QEMU_SYSROOT) $(QEMU_RUN_FLAGS) $(OUT_DIR)/$*; \
+	else \
+		gdb --args $(QEMU_BIN) $(QEMU_RUN_FLAGS) $(OUT_DIR)/$*; \
+	fi
 
 # Run all tests
 run: qemu $(TEST_BIN)
@@ -260,7 +290,18 @@ run: qemu $(TEST_BIN)
 clean:
 	@echo "[CLEAN] Removing output directory..."
 	@rm -rf $(OUT_DIR)
+	@echo "[CLEAN] Cleaning zlib source trees..."
+	@$(MAKE) -C $(NICE_ZLIB_DIR) clean > /dev/null 2>&1 || true
+	@$(MAKE) -C $(MALICIOUS_ZLIB_DIR) clean > /dev/null 2>&1 || true
+	@echo "[CLEAN] Removing lib artifacts..."
+	@rm -f $(LIB_DIR)/libz.a $(LIB_DIR)/libz_malicious.a $(LIB_DIR)/libz_nice.so $(LIB_DIR)/libz_evil.so
 	@echo "[CLEAN] ✓ Done"
+
+# Clean everything including QEMU build
+clean-reset: clean
+	@echo "[CLEAN] Cleaning QEMU build directory..."
+	@$(MAKE) -C $(QEMU_BUILD) clean > /dev/null 2>&1 || true
+	@echo "[CLEAN] ✓ Full reset done"
 
 # Clean disassembly dumps only
 clean-dumps:
@@ -318,21 +359,64 @@ status:
 	@echo "Build System Configuration:"
 	@echo "  Architecture:     $(ARCH)"
 	@echo "  Compiler:         $(CC)"
+	@echo "  Assembler:        $(AS)"
+	@echo "  Objdump:          $(OBJDUMP)"
 	@echo "  CFLAGS:           $(CFLAGS)"
 	@echo "  Test directory:   $(TEST_DIR)/"
 	@echo "  Output directory: $(OUT_DIR)/"
 	@echo "  QEMU location:    $(QEMU_BIN)"
 	@echo ""
-	@echo "Test Files:"
+	@echo "Toolchain Binaries:"
+	@for tool in $(CC) $(AS) $(OBJDUMP) aarch64-linux-gnu-ld; do \
+		if command -v $$tool > /dev/null 2>&1; then \
+			echo "  [✓] $$tool  ($$(command -v $$tool))"; \
+		else \
+			echo "  [✗] $$tool  (NOT FOUND)"; \
+		fi; \
+	done
+	@echo ""
+	@echo "QEMU Binary:"
+	@if [ -f "$(QEMU_BIN)" ]; then \
+		echo "  [✓] $(QEMU_BIN)"; \
+	else \
+		echo "  [✗] $(QEMU_BIN)  (not built — run: make qemu)"; \
+	fi
+	@echo ""
+	@echo "Zlib Libraries ($(LIB_DIR)/):"
+	@for lib in libz.a libz_malicious.a libz_nice.so libz_evil.so; do \
+		if [ -f "$(LIB_DIR)/$$lib" ]; then \
+			echo "  [✓] $(LIB_DIR)/$$lib"; \
+		else \
+			echo "  [✗] $(LIB_DIR)/$$lib  (not built — run: make libs)"; \
+		fi; \
+	done
+	@echo ""
+	@echo "Test Sources:"
 	@if [ -n "$(TEST_SOURCES)" ]; then \
 		echo "$(TEST_SOURCES)" | tr ' ' '\n' | sed 's/^/  /'; \
 	else \
-		echo "  (none found)"; \
+		echo "  (none found in $(TEST_DIR)/)"; \
 	fi
 	@echo ""
-	@echo "Generated Files:"
-	@if [ -d "$(OUT_DIR)" ]; then \
-		ls -1 $(OUT_DIR)/ 2>/dev/null | sed 's/^/  /'; \
+	@echo "Assembly Files ($(OUT_DIR)/*.s):"
+	@if [ -d "$(OUT_DIR)" ] && ls $(OUT_DIR)/*.s > /dev/null 2>&1; then \
+		for f in $(OUT_DIR)/*.s; do echo "  [✓] $$f"; done; \
 	else \
-		echo "  ($(OUT_DIR) does not exist yet)"; \
+		echo "  (none — run: make asm)"; \
+	fi
+	@echo ""
+	@echo "Compiled Binaries ($(OUT_DIR)/):"
+	@if [ -d "$(OUT_DIR)" ]; then \
+		found=0; \
+		for name in $(TEST_NAMES); do \
+			if [ -f "$(OUT_DIR)/$$name" ]; then \
+				echo "  [✓] $(OUT_DIR)/$$name"; \
+				found=1; \
+			else \
+				echo "  [✗] $(OUT_DIR)/$$name  (not built — run: make bin)"; \
+			fi; \
+		done; \
+		if [ "$$found" = "0" ]; then echo "  (none — run: make bin)"; fi; \
+	else \
+		echo "  ($(OUT_DIR) does not exist — run: make bin)"; \
 	fi

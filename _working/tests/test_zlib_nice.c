@@ -235,6 +235,9 @@ void exit_handler(uint64_t regs[31])
         printf("    - Reason: %llu\n", HFI_FAULT_STATE_GET_REASON(fault_state));
         printf("    - Region ID: %llu\n",
                HFI_FAULT_STATE_GET_REGION_ID(fault_state));
+        
+        // this was an expected fault
+        printf("    - This was NOT an expected fault. FAILING TEST\n");
         exit(1);
     }
 }
@@ -404,7 +407,11 @@ static int is_true(int val)
 // Test Logic
 // ============================================================================
 
-int test_zlib_success(void)
+void debug_marker() {
+    printf("[[[[[[MARKER: test_zlib_nice started]]]]]]\n");
+}
+
+int test_zlib_nice(void)
 {
     const char *lib_path = "./lib/libz_nice.so";
     char resolved_lib_path[512];
@@ -464,10 +471,11 @@ int test_zlib_success(void)
         goto out;
     }
 
+    const int MAX_DEST_LEN = 4096;
     source_offset = align_up_u64(sizeof(*ctx), 16);
     dest_offset = align_up_u64(source_offset + source_len, 16);
     alloc_pool_offset =
-        align_up_u64(dest_offset + compress_bound_fn(source_len), 16);
+        align_up_u64(dest_offset + MAX_DEST_LEN, 16);
     stack_offset = align_up_u64(alloc_pool_offset + alloc_pool_size, 16);
     alloc_size = align_up_u64(stack_offset + sandbox_stack_size, page_size);
 
@@ -487,7 +495,7 @@ int test_zlib_success(void)
     ctx->source_buf = sandbox_base + source_offset;
     ctx->source_len = source_len;
     ctx->dest_buf = sandbox_base + dest_offset;
-    ctx->dest_len = compress_bound_fn(source_len);
+    ctx->dest_len = MAX_DEST_LEN;
     ctx->alloc_pool = sandbox_base + alloc_pool_offset;
     ctx->alloc_pool_size = alloc_pool_size;
     ctx->alloc_pool_used = 0;
@@ -519,18 +527,26 @@ int test_zlib_success(void)
     do_hfi_srb(0, harness_code_region.base);
     do_hfi_srm(0, harness_code_region.bound);
     do_hfi_srp(0, HFI_PERM_EXEC | HFI_PERM_READ);
+    printf("Harness code region: base=0x%lx, bound=0x%lx\n",
+           harness_code_region.base, harness_code_region.bound);
 
     do_hfi_srb(1, zlib_code_region.base);
     do_hfi_srm(1, zlib_code_region.bound);
     do_hfi_srp(1, HFI_PERM_EXEC | HFI_PERM_READ);
+    printf("zlib code region: base=0x%lx, bound=0x%lx\n",
+           zlib_code_region.base, zlib_code_region.bound);
 
     do_hfi_srb(3, sandbox_data_region.base);
     do_hfi_srm(3, sandbox_data_region.bound);
     do_hfi_srp(3, HFI_PERM_READ | HFI_PERM_WRITE);
+    printf("Sandbox data region: base=0x%lx, bound=0x%lx\n",
+           sandbox_data_region.base, sandbox_data_region.bound);
 
     do_hfi_srb(4, zlib_data_region.base);
     do_hfi_srm(4, zlib_data_region.bound);
     do_hfi_srp(4, HFI_PERM_READ | HFI_PERM_WRITE);
+    printf("zlib data region: base=0x%lx, bound=0x%lx\n",
+           zlib_data_region.base, zlib_data_region.bound);
 
     do_hfi_seh((uint64_t)exit_handler_scaffold);
     hfi_config = HFI_OPT_LOCK_REGIONS;
@@ -572,7 +588,6 @@ int test_zlib_success(void)
                ctx->alloc_failed);
         goto out;
     }
-
     printf("  -> SUCCESS: Dynamically loaded zlib compressed %lu bytes down to %lu bytes inside HFI.\n",
            ctx->source_len, ctx->dest_len);
     ok = 1;
@@ -588,4 +603,4 @@ out:
 }
 
 TEST_MAIN(
-    TEST(test_zlib_success(), is_true);)
+    TEST(test_zlib_nice(), is_true);)
