@@ -296,21 +296,53 @@ static bool trans_HFI_SR(DisasContext* ctx, arg_HFI_SR* a) {
     return true;
 }
 
+// Same as gen_mte_check1_mmuidx but does explicit region check instead of implicit
+static TCGv_i64 gen_mte_check1_mmuidx_explicit_region(DisasContext *s, TCGv_i64 addr,
+                                      bool is_write, bool tag_checked,
+                                      MemOp memop, bool is_unpriv,
+                                      int core_idx, u_int32_t region_num)
+{
+    gen_helper_hfi_addr_in_explicit_region(tcg_env, addr,
+                                   tcg_constant_i32(!is_write),
+                                   tcg_constant_i32(is_write),
+                                   tcg_constant_i32(memop_size(memop)),
+                                   tcg_constant_i32(region_num));
+
+
+    if (tag_checked && s->mte_active[is_unpriv]) {
+        TCGv_i64 ret;
+        int desc = 0;
+
+        desc = FIELD_DP32(desc, MTEDESC, MIDX, core_idx);
+        desc = FIELD_DP32(desc, MTEDESC, TBI, s->tbid);
+        desc = FIELD_DP32(desc, MTEDESC, TCMA, s->tcma);
+        desc = FIELD_DP32(desc, MTEDESC, WRITE, is_write);
+        desc = FIELD_DP32(desc, MTEDESC, ALIGN, memop_alignment_bits(memop));
+        desc = FIELD_DP32(desc, MTEDESC, SIZEM1, memop_size(memop) - 1);
+
+        ret = tcg_temp_new_i64();
+        gen_helper_mte_check(ret, tcg_env, tcg_constant_i32(desc), addr);
+
+        return ret;
+    }
+    return clean_data_tbi(s, addr);
+}
+
 static void op_addr_hldst_imm_pre(DisasContext *s, arg_hldst_imm *a,
                                  TCGv_i64 *clean_addr, TCGv_i64 *dirty_addr,
                                  uint64_t offset, bool is_store, MemOp mop)
 {
     int memidx;
-    u_int8_t region_num = a->rn1 << 1 | a->rn2;
+    u_int32_t region_num = a->rn1 << 1 | a->rn2;
 
 
     *dirty_addr = read_explicit_region_reg(s, region_num);
     tcg_gen_addi_i64(*dirty_addr, *dirty_addr, offset);
     
     memidx = get_a64_user_mem_index(s, a->unpriv);
-    *clean_addr = gen_mte_check1_mmuidx(s, *dirty_addr, is_store,
+    *clean_addr = gen_mte_check1_mmuidx_explicit_region(s, *dirty_addr, is_store,
                                         0,
-                                        mop, a->unpriv, memidx);
+                                        mop, a->unpriv, memidx, region_num);
 }
 
 

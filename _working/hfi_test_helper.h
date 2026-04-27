@@ -164,7 +164,7 @@
 
 // HLDRB <rt>, [<rn>, #<imm>] - unsigned byte load with immediate offset. rn is unused!
 #define HLDRBU_I_INSTR_VAL(rt, rn, imm) \
-    (0x0C400000 | ((rt & 0x1F) << 0) | ((rn & 0x1F) << 5) | ((imm & 0x1FF) << 12))
+    (0x00400000 | ((rt & 0x1F) << 0) | ((rn & 0x1F) << 5) | ((imm & 0x1FF) << 12))
 
 // STRB <rt>, [<rn>, #<imm>] - unsigned byte store with immediate offset
 #define STRBU_I_INSTR_VAL(rt, rn, imm) \
@@ -172,7 +172,7 @@
 
 // HSTRB <rt>, [<rn>, #<imm>] - unsigned byte store with immediate offset, rn is unused!
 #define HSTRBU_I_INSTR_VAL(rt, rn, imm) \
-    (0x0C000000 | ((rt & 0x1F) << 0) | ((rn & 0x1F) << 5) | ((imm & 0x1FF) << 12))
+    (0x00000000 | ((rt & 0x1F) << 0) | ((rn & 0x1F) << 5) | ((imm & 0x1FF) << 12))
 
 #define LDRL_V_INSTR_VAL(rt, rn, imm) \
     (0x3CC00000 | ((rt & 0x1F) << 0) | ((rn & 0x1F) << 5) | ((imm & 0x1FF) << 12))

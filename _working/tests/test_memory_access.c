@@ -90,16 +90,17 @@ void exit_handler(uint64_t regs[31])
 
 void test_hfi(int load_inside) {
     uint32_t len = 128;
+    uint64_t mask = 0xFFFFFFFFFFFFFFFF - (len - 1);  // mask to match the 128-byte region
     void *code = alloc_code(4096);
     void *data = alloc_data(4096);
 
     HFI_SRB_X1(code, 0);
-    HFI_SRM_X1(len, 0);
+    HFI_SRM_X1(mask, 0);
     HFI_SRP_X1(0x5, 0);
 
     // configure region 2 (implicit data)
     HFI_SRB_X1(data, 2);
-    HFI_SRM_X1(len, 2);
+    HFI_SRM_X1(mask, 2);
     HFI_SRP_X1(0x3, 2);   // READ | WRITE
 
     uint32_t *insns = code;

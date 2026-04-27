@@ -259,9 +259,22 @@ static uint64_t align_up_u64(uint64_t value, uint64_t align)
 static hfi_region_t build_hfi_region(uint64_t start, uint64_t end)
 {
     hfi_region_t region;
+    uint64_t size = end - start;
+    uint64_t block_size;
+    uint64_t block_start;
 
-    region.base = align_down_u64(start, 16);
-    region.bound = align_up_u64(end, 16) - region.base;
+    block_size = 1;
+    while (block_size < size)
+        block_size <<= 1;
+
+    block_start = start & ~(block_size - 1);
+    while (block_start + block_size < end) {
+        block_size <<= 1;
+        block_start = start & ~(block_size - 1);
+    }
+
+    region.base = block_start;
+    region.bound = ~(block_size - 1);
     return region;
 }
 
